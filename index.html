@@ -406,7 +406,9 @@ function filtered(){
   var list = issues.filter(function(it){
     if (view === "mine" && !isMine(it)) return false;
     if (statusF === "open" && state(it) !== "open") return false;
-    if (statusF === "resolved" && state(it) !== "fixed") return false;
+    var cl = fx(it.key) && fx(it.key).on && fx(it.key).cleared;
+    if (cl) return false; // cleared from the fixed list: gone from every view
+    if (statusF === "resolved" && !(fx(it.key) && fx(it.key).on)) return false; // Fixed = the ones you marked fixed
     if (statusF === "skipped" && state(it) !== "skipped") return false;
     if (unOnly && shownAsg(it)) return false;
     if (qq) { var hay = norm([it.address, it.name, it.issue, it.assigned, myAsg(it), it.person, it.notes, it.avail, it.phone, it.dateText].join(" ")); if (qq.split(" ").some(function(w){ return hay.indexOf(w) < 0; })) return false; }
@@ -430,7 +432,7 @@ function render(){
   if (!list.length) {
     h = '<div class="empty">' + (view === "mine" && !issues.some(isMine)
       ? "Nothing is assigned to " + esc(me()) + " yet.<br>Tap <b>Take it</b> on any issue in All Issues to add it here."
-      : "Nothing matches.") + "</div>";
+      : statusF === "resolved" ? "Nothing marked fixed yet.<br>Issues you tap <b>Mark fixed</b> on show up here until you clear the list." : "Nothing matches.") + "</div>";
   } else h = list.map(card).join("");
   var fl = fixedList();
   if (statusF === "resolved" && fl.length) h = '<div class="fixbar"><div><b>' + fl.length + " fixed by you</b> since you last cleared</div>" +
@@ -438,7 +440,7 @@ function render(){
   var mine = changeLines().length + fixedList().length, fixedToday = fixedList().filter(function(it){ var a = fx(it.key).at; return a && dayLabel(a).indexOf("Today") === 0; }).length;
   h += '<div class="foot">' + esc(fileInfo ? fileInfo.name : "") + " · " + issues.length + " issues" + (fileInfo ? " · opened " + esc(fileInfo.at) : "") +
        (mine ? '<br><button type="button" id="chgOpen">My changes (' + mine + ")" + (fixedToday ? " · " + fixedToday + " fixed today" : "") + "</button>" : "") +
-       '<br>You are ' + esc(me()) + ' · <button type="button" id="meBtn">Change name</button>' + (PREVIEW ? "" : '<br><button type="button" id="forget">Remove sheet from this phone</button>') + '<br>Version 8</div>';
+       '<br>You are ' + esc(me()) + ' · <button type="button" id="meBtn">Change name</button>' + (PREVIEW ? "" : '<br><button type="button" id="forget">Remove sheet from this phone</button>') + '<br>Version 9</div>';
   m.innerHTML = h;
   if ($("chgOpen")) $("chgOpen").onclick = openChanges;
   if ($("fbList")) $("fbList").onclick = openChanges;
@@ -478,7 +480,7 @@ function welcome(){
     "<p>Pick the tracking Excel file (.xlsx). It is read right here on this device. Nothing is uploaded or sent anywhere.</p>" +
     (PREVIEW ? '<button class="big" id="wDemo" type="button">Show practice issues</button><p class="note">Preview with made-up names and addresses.</p>'
              : '<button class="big" id="wOpen" type="button">Open Excel sheet</button><button class="link" id="wDemo" type="button">Try it with practice issues</button>' +
-               '<p class="note">Version 8. The app remembers the sheet and your assignments on this device. Open a newer copy any time with Open sheet, and your assignments carry over.</p>') +
+               '<p class="note">Version 9. The app remembers the sheet and your assignments on this device. Open a newer copy any time with Open sheet, and your assignments carry over.</p>') +
     '<div id="werr"></div></div>';
 }
 function wireWelcome(){ if ($("wOpen")) $("wOpen").onclick = pick; $("wDemo").onclick = loadDemo; }
