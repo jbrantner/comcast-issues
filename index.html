@@ -51,6 +51,9 @@ main{padding:12px 16px calc(90px + env(safe-area-inset-bottom));max-width:720px;
 .pill.skip{background:#fff4d6;color:#8a6100}
 .skipnote{margin-top:8px;background:#fff8e6;border-radius:10px;padding:8px 10px;font-size:14px;white-space:pre-wrap;word-break:break-word}
 .sheet textarea{width:100%;font:inherit;font-size:16px;border:1px solid var(--line);border-radius:12px;padding:12px;resize:vertical}
+.fixbar{background:#e7f3ec;border-radius:14px;padding:12px 14px;margin-bottom:12px;color:var(--green)}
+.fixbar .btns{margin-top:10px}
+.fixbar .btns button{padding:10px;font-size:15px}
 .dayhd{font-weight:700;color:var(--green);padding-top:12px!important;border-bottom:2px solid var(--line)!important}
 .list .when2{color:var(--muted);font-size:13px}
 .tag2{font-size:12px;color:var(--green);margin-top:2px}
@@ -429,12 +432,17 @@ function render(){
       ? "Nothing is assigned to " + esc(me()) + " yet.<br>Tap <b>Take it</b> on any issue in All Issues to add it here."
       : "Nothing matches.") + "</div>";
   } else h = list.map(card).join("");
+  var fl = fixedList();
+  if (statusF === "resolved" && fl.length) h = '<div class="fixbar"><div><b>' + fl.length + " fixed by you</b> since you last cleared</div>" +
+    '<div class="btns"><button type="button" id="fbList">See list</button><button type="button" class="clr" id="fbClear">Clear fixed list</button></div></div>' + h;
   var mine = changeLines().length + fixedList().length, fixedToday = fixedList().filter(function(it){ var a = fx(it.key).at; return a && dayLabel(a).indexOf("Today") === 0; }).length;
   h += '<div class="foot">' + esc(fileInfo ? fileInfo.name : "") + " · " + issues.length + " issues" + (fileInfo ? " · opened " + esc(fileInfo.at) : "") +
        (mine ? '<br><button type="button" id="chgOpen">My changes (' + mine + ")" + (fixedToday ? " · " + fixedToday + " fixed today" : "") + "</button>" : "") +
-       '<br>You are ' + esc(me()) + ' · <button type="button" id="meBtn">Change name</button>' + (PREVIEW ? "" : '<br><button type="button" id="forget">Remove sheet from this phone</button>') + '<br>Version 7</div>';
+       '<br>You are ' + esc(me()) + ' · <button type="button" id="meBtn">Change name</button>' + (PREVIEW ? "" : '<br><button type="button" id="forget">Remove sheet from this phone</button>') + '<br>Version 8</div>';
   m.innerHTML = h;
   if ($("chgOpen")) $("chgOpen").onclick = openChanges;
+  if ($("fbList")) $("fbList").onclick = openChanges;
+  if ($("fbClear")) $("fbClear").onclick = function(){ var b = this; if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Tap again to clear"; return; } clearFixed(); };
   if ($("meBtn")) $("meBtn").onclick = function(){ openAssign(null); };
   if ($("forget")) $("forget").onclick = function(){ var b = this; if (b.dataset.sure) forgetSheet(); else { b.dataset.sure = 1; b.textContent = "Tap again to remove the sheet (assignments stay)"; } };
 }
@@ -470,7 +478,7 @@ function welcome(){
     "<p>Pick the tracking Excel file (.xlsx). It is read right here on this device. Nothing is uploaded or sent anywhere.</p>" +
     (PREVIEW ? '<button class="big" id="wDemo" type="button">Show practice issues</button><p class="note">Preview with made-up names and addresses.</p>'
              : '<button class="big" id="wOpen" type="button">Open Excel sheet</button><button class="link" id="wDemo" type="button">Try it with practice issues</button>' +
-               '<p class="note">Version 7. The app remembers the sheet and your assignments on this device. Open a newer copy any time with Open sheet, and your assignments carry over.</p>') +
+               '<p class="note">Version 8. The app remembers the sheet and your assignments on this device. Open a newer copy any time with Open sheet, and your assignments carry over.</p>') +
     '<div id="werr"></div></div>';
 }
 function wireWelcome(){ if ($("wOpen")) $("wOpen").onclick = pick; $("wDemo").onclick = loadDemo; }
@@ -591,10 +599,13 @@ function openChanges(){
   $("chgClear").classList.toggle("hide", !fl.length); $("chgClear").textContent = "Clear fixed list"; delete $("chgClear").dataset.sure;
   $("chgBg").classList.add("on");
 }
+function clearFixed(){
+  fixedList().forEach(function(it){ var v = fx(it.key); saved.fixed[it.key] = {on: true, at: v.at || Date.now(), cleared: true}; });
+  persist(); render(); toast("Fixed list cleared. Those issues stay fixed");
+}
 $("chgClear").onclick = function(){
   var b = this; if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Tap again to clear"; return; }
-  fixedList().forEach(function(it){ var v = fx(it.key); saved.fixed[it.key] = {on: true, at: v.at || Date.now(), cleared: true}; });
-  persist(); render(); openChanges(); toast("Fixed list cleared. Those issues stay fixed");
+  clearFixed(); openChanges();
 };
 $("chgCopy").onclick = function(){
   var t = fixedList().map(function(it){ var v = fx(it.key); return (it.address || "No address") + (it.dateText ? " (" + it.dateText + ")" : "") + ": Fixed" + (v.at ? " " + fmtDate(new Date(v.at)) : ""); })
