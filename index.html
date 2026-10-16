@@ -140,6 +140,22 @@ var PREVIEW = false;
 var STORE = "comcastIssues.v1";
 var saved = {fav:{}, asg:{}, names:[]};
 try { var s = JSON.parse(localStorage.getItem(STORE) || "null"); if (s && typeof s === "object") { saved.fav = s.fav || {}; saved.asg = s.asg || {}; saved.names = s.names || []; } } catch (e) {}
+var SHEET = "comcastIssues.sheet.v1";
+function saveSheet(){
+  try {
+    localStorage.setItem(SHEET, JSON.stringify({name: fileInfo.name, at: fileInfo.at, issues: issues.map(function(it){ var o = Object.assign({}, it); o.date = it.date ? it.date.getTime() : null; return o; })}));
+  } catch (e) { toast("Couldn't keep the sheet on this phone"); }
+}
+function restoreSheet(){
+  try {
+    var d = JSON.parse(localStorage.getItem(SHEET) || "null");
+    if (!d || !Array.isArray(d.issues)) return false;
+    issues = d.issues.map(function(it){ it.date = it.date != null ? new Date(it.date) : null; return it; });
+    fileInfo = {name: d.name || "Saved sheet", at: d.at || ""};
+    return true;
+  } catch (e) { return false; }
+}
+function forgetSheet(){ try { localStorage.removeItem(SHEET); } catch (e) {} issues = []; fileInfo = null; render(); toast("Sheet removed from this phone"); }
 function persist(){ try { localStorage.setItem(STORE, JSON.stringify(saved)); } catch (e) { toast("Couldn't save on this phone"); } }
 
 function hash(str){ // FNV-1a, two 32-bit lanes; stored instead of the address itself
@@ -357,9 +373,11 @@ function render(){
   } else h = list.map(card).join("");
   var mine = issues.filter(function(it){ return myAsg(it); }).length;
   h += '<div class="foot">' + esc(fileInfo ? fileInfo.name : "") + " · " + issues.length + " issues" + (fileInfo ? " · opened " + esc(fileInfo.at) : "") +
-       (mine ? '<br><button type="button" id="chgOpen">My assignments (' + mine + ")</button>" : "") + "</div>";
+       (mine ? '<br><button type="button" id="chgOpen">My assignments (' + mine + ")</button>" : "") +
+       (PREVIEW ? "" : '<br><button type="button" id="forget">Remove sheet from this phone</button>') + "</div>";
   m.innerHTML = h;
   if ($("chgOpen")) $("chgOpen").onclick = openChanges;
+  if ($("forget")) $("forget").onclick = function(){ var b = this; if (b.dataset.sure) forgetSheet(); else { b.dataset.sure = 1; b.textContent = "Tap again to remove the sheet (favorites stay)"; } };
 }
 function card(it){
   var mine = myAsg(it), fav = !!saved.fav[it.key], asg;
@@ -388,7 +406,7 @@ function welcome(){
     "<p>Pick the tracking Excel file (.xlsx). It is read right here on this device. Nothing is uploaded or sent anywhere.</p>" +
     (PREVIEW ? '<button class="big" id="wDemo" type="button">Show practice issues</button><p class="note">Preview with made-up names and addresses.</p>'
              : '<button class="big" id="wOpen" type="button">Open Excel sheet</button><button class="link" id="wDemo" type="button">Try it with practice issues</button>' +
-               '<p class="note">Favorites and assignments you add stay on this device. Opening a newer copy of the sheet keeps them.</p>') +
+               '<p class="note">The app remembers the sheet, your favorites and your assignments on this device. Open a newer copy any time with Open sheet, and your favorites and assignments carry over.</p>') +
     '<div id="werr"></div></div>';
 }
 function wireWelcome(){ if ($("wOpen")) $("wOpen").onclick = pick; $("wDemo").onclick = loadDemo; }
@@ -400,9 +418,9 @@ $("file").addEventListener("change", async function(){
   try {
     var data = await readWorkbook(await f.arrayBuffer());
     issues = buildIssues(data);
-    fileInfo = {name: f.name, at: fmtDate(new Date()).replace(/^\S+\s?/, "") || "now"};
+    fileInfo = {name: f.name, at: fmtDate(new Date())};
     if (!issues.length) toast("No issues found in that sheet");
-    learnNames(); render(); window.scrollTo(0, 0);
+    learnNames(); persist(); if (!PREVIEW) saveSheet(); render(); window.scrollTo(0, 0);
   } catch (e) { showErr(e); }
 });
 function showErr(e){
@@ -496,9 +514,10 @@ function loadDemo(){
     return {key: "demo" + hash(base + "|" + seen[base]), row: i + 2, date: p[0], dateText: fmtDate(p[0]), address: p[1], assigned: p[2], name: p[3], phone: p[4], issue: p[5], person: p[6], resolved: p[7], notes: p[8], avail: p[9]};
   });
   fileInfo = {name: "Practice issues (made up)", at: ""};
-  learnNames(); render(); window.scrollTo(0, 0);
+  learnNames(); if (!PREVIEW) saveSheet(); render(); window.scrollTo(0, 0);
 }
 
+restoreSheet();
 render();
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(function(){});
 </script>
