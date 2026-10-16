@@ -374,7 +374,7 @@ function render(){
   var mine = issues.filter(function(it){ return myAsg(it); }).length;
   h += '<div class="foot">' + esc(fileInfo ? fileInfo.name : "") + " · " + issues.length + " issues" + (fileInfo ? " · opened " + esc(fileInfo.at) : "") +
        (mine ? '<br><button type="button" id="chgOpen">My assignments (' + mine + ")</button>" : "") +
-       (PREVIEW ? "" : '<br><button type="button" id="forget">Remove sheet from this phone</button>') + "</div>";
+       (PREVIEW ? "" : '<br><button type="button" id="forget">Remove sheet from this phone</button>') + '<br>Version 3</div>';
   m.innerHTML = h;
   if ($("chgOpen")) $("chgOpen").onclick = openChanges;
   if ($("forget")) $("forget").onclick = function(){ var b = this; if (b.dataset.sure) forgetSheet(); else { b.dataset.sure = 1; b.textContent = "Tap again to remove the sheet (favorites stay)"; } };
@@ -406,7 +406,7 @@ function welcome(){
     "<p>Pick the tracking Excel file (.xlsx). It is read right here on this device. Nothing is uploaded or sent anywhere.</p>" +
     (PREVIEW ? '<button class="big" id="wDemo" type="button">Show practice issues</button><p class="note">Preview with made-up names and addresses.</p>'
              : '<button class="big" id="wOpen" type="button">Open Excel sheet</button><button class="link" id="wDemo" type="button">Try it with practice issues</button>' +
-               '<p class="note">The app remembers the sheet, your favorites and your assignments on this device. Open a newer copy any time with Open sheet, and your favorites and assignments carry over.</p>') +
+               '<p class="note">Version 3. The app remembers the sheet, your favorites and your assignments on this device. Open a newer copy any time with Open sheet, and your favorites and assignments carry over.</p>') +
     '<div id="werr"></div></div>';
 }
 function wireWelcome(){ if ($("wOpen")) $("wOpen").onclick = pick; $("wDemo").onclick = loadDemo; }
@@ -519,7 +519,12 @@ function loadDemo(){
 
 restoreSheet();
 render();
-if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(function(){});
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  var hadSW = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register("sw.js", {updateViaCache: "none"}).then(function(r){ r.update(); }).catch(function(){});
+  navigator.serviceWorker.addEventListener("controllerchange", function(){ if (hadSW && !window.__reloaded) { window.__reloaded = 1; location.reload(); } });
+  document.addEventListener("visibilitychange", function(){ if (!document.hidden) navigator.serviceWorker.getRegistration().then(function(r){ if (r) r.update(); }); });
+}
 </script>
 </body>
 </html>
