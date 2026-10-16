@@ -43,6 +43,8 @@ main{padding:12px 16px calc(90px + env(safe-area-inset-bottom));max-width:720px;
 .pill.res{background:#e7f3ec;color:var(--green)}
 .star{border:0;background:none;font-size:26px;line-height:1;padding:2px 2px 2px 8px;color:#c9bfc2}
 .star[aria-pressed=true]{color:var(--star)}
+.asg .take{background:var(--brand);color:#fff}
+.asg .take + button{margin-left:0}
 .addr{font-weight:700;font-size:17px;margin-top:4px}
 .who{color:var(--muted);font-size:15px}
 .issue{margin-top:8px;white-space:pre-wrap;word-break:break-word}
@@ -92,8 +94,8 @@ main{padding:12px 16px calc(90px + env(safe-area-inset-bottom));max-width:720px;
     <button class="open" id="openBtn" type="button">Open sheet</button>
   </div>
   <div class="tabs" role="tablist">
-    <button class="tab" role="tab" id="tabAll" aria-selected="true" type="button">All Issues<span class="n" id="nAll">0</span></button>
-    <button class="tab" role="tab" id="tabFav" aria-selected="false" type="button">Favorites<span class="n" id="nFav">0</span></button>
+    <button class="tab" role="tab" id="tabMine" aria-selected="true" type="button">My Assigned<span class="n" id="nMine">0</span></button>
+    <button class="tab" role="tab" id="tabAll" aria-selected="false" type="button">All Issues<span class="n" id="nAll">0</span></button>
   </div>
 </header>
 <div class="bar hide" id="bar">
@@ -138,8 +140,8 @@ var PREVIEW = false;
 
 /* ---------- saved on this phone: favorites + my assignments, keyed by a hash of date + address ---------- */
 var STORE = "comcastIssues.v1";
-var saved = {fav:{}, asg:{}, names:[]};
-try { var s = JSON.parse(localStorage.getItem(STORE) || "null"); if (s && typeof s === "object") { saved.fav = s.fav || {}; saved.asg = s.asg || {}; saved.names = s.names || []; } } catch (e) {}
+var saved = {fav:{}, asg:{}, names:[], me:""};
+try { var s = JSON.parse(localStorage.getItem(STORE) || "null"); if (s && typeof s === "object") { saved.fav = s.fav || {}; saved.asg = s.asg || {}; saved.names = s.names || []; saved.me = s.me || ""; } } catch (e) {}
 var SHEET = "comcastIssues.sheet.v1";
 function saveSheet(){
   try {
@@ -334,17 +336,19 @@ function fmtDate(d){
 }
 
 /* ---------- state + rendering ---------- */
-var issues = [], fileInfo = null, view = "all", statusF = "open", unOnly = false, newest = true, q = "", assigningKey = null;
+var issues = [], fileInfo = null, view = "mine", statusF = "open", unOnly = false, newest = true, q = "", assigningKey = null;
 var $ = function(id){ return document.getElementById(id); };
 function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
 function myAsg(it){ return saved.asg[it.key] && saved.asg[it.key].name || ""; }
 function shownAsg(it){ return myAsg(it) || it.assigned; }
+function me(){ return saved.me || "Jordan"; }
+function isMine(it){ var a = norm(shownAsg(it)), m = norm(me()); if (!a || !m) return false; return (" " + a.replace(/[^a-z0-9]+/g, " ") + " ").indexOf(" " + m + " ") > -1; }
 function telHref(p){ var d = String(p).replace(/[^\d+]/g, ""); return d.replace(/\D/g, "").length >= 7 ? "tel:" + d : ""; }
 
 function filtered(){
   var qq = norm(q);
   var list = issues.filter(function(it){
-    if (view === "fav" && !saved.fav[it.key]) return false;
+    if (view === "mine" && !isMine(it)) return false;
     if (statusF === "open" && it.resolved) return false;
     if (statusF === "resolved" && !it.resolved) return false;
     if (unOnly && shownAsg(it)) return false;
@@ -359,31 +363,32 @@ function render(){
   var hasData = issues.length > 0 || fileInfo;
   $("bar").classList.toggle("hide", !hasData);
   $("nAll").textContent = issues.filter(function(it){ return !it.resolved; }).length;
-  $("nFav").textContent = issues.filter(function(it){ return saved.fav[it.key]; }).length;
+  $("nMine").textContent = issues.filter(function(it){ return !it.resolved && isMine(it); }).length;
   $("tabAll").setAttribute("aria-selected", view === "all");
-  $("tabFav").setAttribute("aria-selected", view === "fav");
+  $("tabMine").setAttribute("aria-selected", view === "mine");
   setHdr();
   var m = $("main");
   if (!hasData) { m.innerHTML = welcome(); wireWelcome(); return; }
   var list = filtered(), h = "";
   if (!list.length) {
-    h = '<div class="empty">' + (view === "fav" && !Object.keys(saved.fav).some(function(k){ return issues.some(function(it){ return it.key === k; }); })
-      ? "No favorites yet.<br>Tap the ☆ on any issue in All Issues to add it here."
+    h = '<div class="empty">' + (view === "mine" && !issues.some(isMine)
+      ? "Nothing is assigned to " + esc(me()) + " yet.<br>Tap <b>Take it</b> on any issue in All Issues to add it here."
       : "Nothing matches.") + "</div>";
   } else h = list.map(card).join("");
   var mine = issues.filter(function(it){ return myAsg(it); }).length;
   h += '<div class="foot">' + esc(fileInfo ? fileInfo.name : "") + " · " + issues.length + " issues" + (fileInfo ? " · opened " + esc(fileInfo.at) : "") +
        (mine ? '<br><button type="button" id="chgOpen">My assignments (' + mine + ")</button>" : "") +
-       (PREVIEW ? "" : '<br><button type="button" id="forget">Remove sheet from this phone</button>') + '<br>Version 3</div>';
+       '<br>You are ' + esc(me()) + ' · <button type="button" id="meBtn">Change name</button>' + (PREVIEW ? "" : '<br><button type="button" id="forget">Remove sheet from this phone</button>') + '<br>Version 4</div>';
   m.innerHTML = h;
   if ($("chgOpen")) $("chgOpen").onclick = openChanges;
-  if ($("forget")) $("forget").onclick = function(){ var b = this; if (b.dataset.sure) forgetSheet(); else { b.dataset.sure = 1; b.textContent = "Tap again to remove the sheet (favorites stay)"; } };
+  if ($("meBtn")) $("meBtn").onclick = function(){ openAssign(null); };
+  if ($("forget")) $("forget").onclick = function(){ var b = this; if (b.dataset.sure) forgetSheet(); else { b.dataset.sure = 1; b.textContent = "Tap again to remove the sheet (assignments stay)"; } };
 }
 function card(it){
-  var mine = myAsg(it), fav = !!saved.fav[it.key], asg;
-  if (mine) asg = '<span class="lbl">Assigned</span><span class="name mine">' + esc(mine) + '</span><span class="tag">(added by you' + (it.assigned ? ", sheet says " + esc(it.assigned) : "") + ')</span><button type="button" data-asg="' + it.key + '">Change</button>';
-  else if (it.assigned) asg = '<span class="lbl">Assigned</span><span class="name">' + esc(it.assigned) + '</span><button type="button" data-asg="' + it.key + '">Change</button>';
-  else asg = '<span class="none">Unassigned</span><button type="button" data-asg="' + it.key + '">Assign</button>';
+  var mine = myAsg(it), asg, take = isMine(it) ? "" : '<button type="button" class="take" data-take="' + it.key + '">Take it</button>';
+  if (mine) asg = '<span class="lbl">Assigned</span><span class="name mine">' + esc(mine) + '</span><span class="tag">(added by you' + (it.assigned ? ", sheet says " + esc(it.assigned) : "") + ')</span>' + take + '<button type="button" data-asg="' + it.key + '">Change</button>';
+  else if (it.assigned) asg = '<span class="lbl">Assigned</span><span class="name">' + esc(it.assigned) + '</span>' + take + '<button type="button" data-asg="' + it.key + '">Change</button>';
+  else asg = '<span class="none">Unassigned</span>' + take + '<button type="button" data-asg="' + it.key + '">Assign</button>';
   var meta = "";
   if (it.avail) meta += "<div><b>Available:</b> " + esc(it.avail) + "</div>";
   if (it.notes) meta += "<div><b>Notes:</b> " + esc(it.notes) + "</div>";
@@ -392,7 +397,7 @@ function card(it){
   return '<article class="card' + (it.resolved ? " done" : "") + '">' +
     '<div class="row1"><span class="when">' + esc(it.dateText || "No date") + '</span>' +
     '<span class="pill ' + (it.resolved ? 'res">Resolved' : 'open">Open') + '</span>' +
-    '<button type="button" class="star" data-fav="' + it.key + '" aria-pressed="' + fav + '" aria-label="' + (fav ? "Remove from favorites" : "Add to favorites") + '">' + (fav ? "★" : "☆") + "</button></div>" +
+    "</div>" +
     '<div class="addr">' + esc(it.address || "No address") + "</div>" +
     (it.name ? '<div class="who">' + esc(it.name) + "</div>" : "") +
     (it.issue ? '<div class="issue">' + esc(it.issue) + "</div>" : "") +
@@ -406,7 +411,7 @@ function welcome(){
     "<p>Pick the tracking Excel file (.xlsx). It is read right here on this device. Nothing is uploaded or sent anywhere.</p>" +
     (PREVIEW ? '<button class="big" id="wDemo" type="button">Show practice issues</button><p class="note">Preview with made-up names and addresses.</p>'
              : '<button class="big" id="wOpen" type="button">Open Excel sheet</button><button class="link" id="wDemo" type="button">Try it with practice issues</button>' +
-               '<p class="note">Version 3. The app remembers the sheet, your favorites and your assignments on this device. Open a newer copy any time with Open sheet, and your favorites and assignments carry over.</p>') +
+               '<p class="note">Version 4. The app remembers the sheet and your assignments on this device. Open a newer copy any time with Open sheet, and your assignments carry over.</p>') +
     '<div id="werr"></div></div>';
 }
 function wireWelcome(){ if ($("wOpen")) $("wOpen").onclick = pick; $("wDemo").onclick = loadDemo; }
@@ -438,12 +443,19 @@ function learnNames(){
 
 /* ---------- favorites + assigning ---------- */
 document.addEventListener("click", function(e){
-  var fb = e.target.closest("[data-fav]");
-  if (fb) { var k = fb.getAttribute("data-fav"); if (saved.fav[k]) delete saved.fav[k]; else saved.fav[k] = 1; persist(); render(); toast(saved.fav[k] ? "Added to Favorites" : "Removed from Favorites"); return; }
+  var tb = e.target.closest("[data-take]");
+  if (tb) { saved.asg[tb.getAttribute("data-take")] = {name: me(), at: Date.now()}; persist(); render(); toast("Added to My Assigned"); return; }
   var ab = e.target.closest("[data-asg]");
   if (ab) openAssign(ab.getAttribute("data-asg"));
 });
 function openAssign(k){
+  if (k === null) {
+    assigningKey = "__me";
+    $("asgTitle").textContent = "Your name";
+    $("asgSub").textContent = "My Assigned shows issues assigned to this name.";
+    $("asgName").value = me(); $("asgClear").classList.add("hide"); $("asgChips").innerHTML = "";
+    $("asgBg").classList.add("on"); return;
+  }
   var it = issues.filter(function(x){ return x.key === k; })[0]; if (!it) return;
   assigningKey = k;
   $("asgTitle").textContent = shownAsg(it) ? "Change who's assigned" : "Assign this issue";
@@ -460,6 +472,7 @@ function saveAssign(){
   var n = $("asgName").value.trim().replace(/\s+/g, " ");
   if (!n) { $("asgName").focus(); return; }
   n = n.replace(/\b([a-z])/g, function(m){ return m.toUpperCase(); });
+  if (assigningKey === "__me") { saved.me = n; persist(); closeAssign(); render(); toast("My Assigned now shows " + n); return; }
   saved.asg[assigningKey] = {name: n, at: Date.now()};
   if (!saved.names.some(function(x){ return x.toLowerCase() === n.toLowerCase(); })) saved.names.push(n);
   saved.names = saved.names.filter(function(x){ return x.toLowerCase() !== n.toLowerCase(); }).concat([n]).slice(-30);
@@ -480,7 +493,7 @@ $("chgBg").addEventListener("click", function(e){ if (e.target === this) this.cl
 
 /* ---------- tabs, search, filters ---------- */
 $("tabAll").onclick = function(){ view = "all"; render(); };
-$("tabFav").onclick = function(){ view = "fav"; render(); };
+$("tabMine").onclick = function(){ view = "mine"; render(); };
 $("openBtn").onclick = pick;
 $("q").addEventListener("input", function(){ q = this.value; render(); });
 $("chips").addEventListener("click", function(e){
@@ -500,10 +513,10 @@ function loadDemo(){
   var P = [
     [d(10,8,9,15), "12 Pretend Lane", "Sam", "Wanda Wobblebottom", "555.010.0101", "TV says no signal on the bedroom box", "", false, "", "Weekday mornings"],
     [d(10,9,13,40), "Apt 3B, Make-Believe Hall", "", "Percy Plumtree", "555.010.0102", "Can't connect the tablet to the new WiFi", "", false, "", "After 2 PM"],
-    [d(10,10,10,5), "48 Imaginary Court", "Pat", "Gertie Gumdrop", "555.010.0103", "Remote won't change channels (needs XR15 pairing)", "", true, "Paired remote, showed how to use voice button", ""],
+    [d(10,10,10,5), "48 Imaginary Court", "Jordan", "Gertie Gumdrop", "555.010.0103", "Remote won't change channels (needs XR15 pairing)", "", true, "Paired remote, showed how to use voice button", ""],
     [d(10,12,8,50), "7 Storybook Circle", "Left message 10/13", "Barnaby Bumblesworth", "555.010.0104", "Phone line has a hum since the switch", "Front Desk", false, "", "Mon/Wed 10-12"],
     [d(10,13,15,20), "Apt 12A, Daydream House", "", "Mildred Marmalade", "555.010.0105", "Wants help setting up email on the new modem", "", false, "", ""],
-    [d(10,14,11,0), "22 Fiddlesticks Road", "Lee", "Horace Hullabaloo", "555.010.0106", "Second X1 box not installed yet", "", false, "Comcast tech booked 10/20", "Any afternoon"],
+    [d(10,14,11,0), "22 Fiddlesticks Road", "Jordan", "Horace Hullabaloo", "555.010.0106", "Second X1 box not installed yet", "", false, "Comcast tech booked 10/20", "Any afternoon"],
     [d(10,15,9,30), "Apt 5C, Make-Believe Hall", "", "Clementine Cobblepot", "555.010.0107", "Internet drops every evening", "", false, "", "Tues or Thurs, 1-3 PM"],
     [d(10,15,14,10), "3 Whimsy Way", "Sam", "Ferdinand Fizzwhistle", "555.010.0108", "Captions stuck on, can't turn off", "", true, "Turned off in settings", ""],
     [d(10,16,8,5), "Apt 9D, Daydream House", "", "Ophelia Oddsock", "555.010.0109", "Old cable box needs to be returned", "", false, "", "Fridays"]
