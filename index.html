@@ -45,6 +45,13 @@ main{padding:12px 16px calc(90px + env(safe-area-inset-bottom));max-width:720px;
 .star[aria-pressed=true]{color:var(--star)}
 .fixbtn{border:1px solid var(--line);background:#fff;color:var(--green);border-radius:10px;padding:5px 10px;font-size:13px;font-weight:700}
 .done .fixbtn{color:var(--muted)}
+.acts{display:flex;gap:8px;margin-top:10px}
+.acts button{flex:1;padding:9px 10px;font-size:14px}
+.skipbtn{border:1px solid var(--line);background:#fff;color:#8a6100;border-radius:10px;font-weight:700}
+.pill.skip{background:#fff4d6;color:#8a6100}
+.skipnote{margin-top:8px;background:#fff8e6;border-radius:10px;padding:8px 10px;font-size:14px;white-space:pre-wrap;word-break:break-word}
+.sheet textarea{width:100%;font:inherit;font-size:16px;border:1px solid var(--line);border-radius:12px;padding:12px;resize:vertical}
+.list .when2{color:var(--muted);font-size:13px}
 .tag2{font-size:12px;color:var(--green);margin-top:2px}
 .asg .take{background:var(--brand);color:#fff}
 .asg .take + button{margin-left:0}
@@ -106,6 +113,7 @@ main{padding:12px 16px calc(90px + env(safe-area-inset-bottom));max-width:720px;
   <div class="chips" id="chips">
     <button class="chip" data-f="open" aria-pressed="true" type="button">Open</button>
     <button class="chip" data-f="resolved" aria-pressed="false" type="button">Fixed</button>
+    <button class="chip" data-f="skipped" aria-pressed="false" type="button">Skipped</button>
     <button class="chip" data-f="all" aria-pressed="false" type="button">All</button>
     <button class="chip" id="unOnly" aria-pressed="false" type="button">Unassigned only</button>
     <button class="chip" id="sortBtn" aria-pressed="false" type="button">Newest first</button>
@@ -127,12 +135,24 @@ main{padding:12px 16px calc(90px + env(safe-area-inset-bottom));max-width:720px;
     </div>
   </div>
 </div>
+<div class="sheet-bg" id="skipBg">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="skipTitle">
+    <h3 id="skipTitle">Skip this issue</h3>
+    <div class="sub" id="skipSub"></div>
+    <textarea id="skipNote" rows="4" placeholder="Note for the sheet, like: Not home, left a card"></textarea>
+    <div class="btns">
+      <button type="button" class="clr" id="skipUndo">Un-skip</button>
+      <button type="button" id="skipCancel">Cancel</button>
+      <button type="button" class="go" id="skipSave">Skip</button>
+    </div>
+  </div>
+</div>
 <div class="sheet-bg" id="chgBg">
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="chgTitle">
-    <h3 id="chgTitle">My assignments</h3>
-    <div class="sub">These are saved on this phone only. Add them to the real sheet when you can.</div>
+    <h3 id="chgTitle">My changes</h3>
+    <div class="sub">Saved on this phone only. Add them to the Excel sheet when you're done.</div>
     <div class="list" id="chgList"></div>
-    <div class="btns"><button type="button" class="go" id="chgClose">Done</button></div>
+    <div class="btns"><button type="button" id="chgCopy">Copy all</button><button type="button" class="go" id="chgClose">Done</button></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -143,8 +163,8 @@ var PREVIEW = false;
 
 /* ---------- saved on this phone: favorites + my assignments, keyed by a hash of date + address ---------- */
 var STORE = "comcastIssues.v1";
-var saved = {fav:{}, asg:{}, names:[], me:"", fixed:{}};
-try { var s = JSON.parse(localStorage.getItem(STORE) || "null"); if (s && typeof s === "object") { saved.fav = s.fav || {}; saved.asg = s.asg || {}; saved.names = s.names || []; saved.me = s.me || ""; saved.fixed = s.fixed || {}; } } catch (e) {}
+var saved = {fav:{}, asg:{}, names:[], me:"", fixed:{}, skip:{}};
+try { var s = JSON.parse(localStorage.getItem(STORE) || "null"); if (s && typeof s === "object") { saved.fav = s.fav || {}; saved.asg = s.asg || {}; saved.names = s.names || []; saved.me = s.me || ""; saved.fixed = s.fixed || {}; saved.skip = s.skip || {}; } } catch (e) {}
 var SHEET = "comcastIssues.sheet.v1";
 function saveSheet(){
   try {
@@ -366,6 +386,8 @@ function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(
 function myAsg(it){ return saved.asg[it.key] && saved.asg[it.key].name || ""; }
 function shownAsg(it){ return myAsg(it) || it.assigned; }
 function isFixed(it){ return saved.fixed[it.key] != null ? !!saved.fixed[it.key] : !!it.resolved; }
+function isSkipped(it){ return !!saved.skip[it.key] && !isFixed(it); }
+function state(it){ return isFixed(it) ? "fixed" : isSkipped(it) ? "skipped" : "open"; }
 function me(){ return saved.me || "Jordan"; }
 function isMine(it){ var a = norm(shownAsg(it)), m = norm(me()); if (!a || !m) return false; return (" " + a.replace(/[^a-z0-9]+/g, " ") + " ").indexOf(" " + m + " ") > -1; }
 function telHref(p){ var d = String(p).replace(/[^\d+]/g, ""); return d.replace(/\D/g, "").length >= 7 ? "tel:" + d : ""; }
@@ -374,8 +396,9 @@ function filtered(){
   var qq = norm(q);
   var list = issues.filter(function(it){
     if (view === "mine" && !isMine(it)) return false;
-    if (statusF === "open" && isFixed(it)) return false;
-    if (statusF === "resolved" && !isFixed(it)) return false;
+    if (statusF === "open" && state(it) !== "open") return false;
+    if (statusF === "resolved" && state(it) !== "fixed") return false;
+    if (statusF === "skipped" && state(it) !== "skipped") return false;
     if (unOnly && shownAsg(it)) return false;
     if (qq) { var hay = norm([it.address, it.name, it.issue, it.assigned, myAsg(it), it.person, it.notes, it.avail, it.phone, it.dateText].join(" ")); if (qq.split(" ").some(function(w){ return hay.indexOf(w) < 0; })) return false; }
     return true;
@@ -387,8 +410,8 @@ function filtered(){
 function render(){
   var hasData = issues.length > 0 || fileInfo;
   $("bar").classList.toggle("hide", !hasData);
-  $("nAll").textContent = issues.filter(function(it){ return !isFixed(it); }).length;
-  $("nMine").textContent = issues.filter(function(it){ return !isFixed(it) && isMine(it); }).length;
+  $("nAll").textContent = issues.filter(function(it){ return state(it) === "open"; }).length;
+  $("nMine").textContent = issues.filter(function(it){ return state(it) === "open" && isMine(it); }).length;
   $("tabAll").setAttribute("aria-selected", view === "all");
   $("tabMine").setAttribute("aria-selected", view === "mine");
   setHdr();
@@ -400,10 +423,10 @@ function render(){
       ? "Nothing is assigned to " + esc(me()) + " yet.<br>Tap <b>Take it</b> on any issue in All Issues to add it here."
       : "Nothing matches.") + "</div>";
   } else h = list.map(card).join("");
-  var mine = issues.filter(function(it){ return myAsg(it); }).length;
+  var mine = changeLines().length;
   h += '<div class="foot">' + esc(fileInfo ? fileInfo.name : "") + " · " + issues.length + " issues" + (fileInfo ? " · opened " + esc(fileInfo.at) : "") +
-       (mine ? '<br><button type="button" id="chgOpen">My assignments (' + mine + ")</button>" : "") +
-       '<br>You are ' + esc(me()) + ' · <button type="button" id="meBtn">Change name</button>' + (PREVIEW ? "" : '<br><button type="button" id="forget">Remove sheet from this phone</button>') + '<br>Version 5</div>';
+       (mine ? '<br><button type="button" id="chgOpen">My changes (' + mine + ")</button>" : "") +
+       '<br>You are ' + esc(me()) + ' · <button type="button" id="meBtn">Change name</button>' + (PREVIEW ? "" : '<br><button type="button" id="forget">Remove sheet from this phone</button>') + '<br>Version 6</div>';
   m.innerHTML = h;
   if ($("chgOpen")) $("chgOpen").onclick = openChanges;
   if ($("meBtn")) $("meBtn").onclick = function(){ openAssign(null); };
@@ -419,17 +442,21 @@ function card(it){
   if (it.notes) meta += "<div><b>Notes:</b> " + esc(it.notes) + "</div>";
   if (it.person) meta += "<div><b>Person Addressing issue:</b> " + esc(it.person) + "</div>";
   var tel = it.phone ? telHref(it.phone) : "";
-  return '<article class="card' + (isFixed(it) ? " done" : "") + '">' +
+  var st = state(it), sk = saved.skip[it.key];
+  return '<article class="card' + (st !== "open" ? " done" : "") + '">' +
     '<div class="row1"><span class="when">' + esc(it.dateText || "No date") + '</span>' +
-    '<span class="pill ' + (isFixed(it) ? 'res">Fixed' : 'open">Open') + '</span>' +
-    '<button type="button" class="fixbtn" data-fix="' + it.key + '">' + (isFixed(it) ? "Reopen" : "Mark fixed") + "</button></div>" +
+    '<span class="pill ' + (st === "fixed" ? 'res">Fixed' : st === "skipped" ? 'skip">Skipped' : 'open">Open') + '</span>' +
+    "</div>" +
     (saved.fixed[it.key] != null && !!saved.fixed[it.key] !== !!it.resolved ? '<div class="tag2">' + (isFixed(it) ? "Marked fixed by you" : "Reopened by you") + "</div>" : "") +
     '<div class="addr">' + esc(it.address || "No address") + "</div>" +
     (it.name ? '<div class="who">' + esc(it.name) + "</div>" : "") +
     (it.issue ? '<div class="issue">' + esc(it.issue) + "</div>" : "") +
+    (st === "skipped" ? '<div class="skipnote"><b>Skipped' + (sk.at ? " " + esc(fmtDate(new Date(sk.at))) : "") + ":</b> " + esc(sk.note || "(no note)") + "</div>" : "") +
     '<div class="asg">' + asg + "</div>" +
     (meta ? '<div class="meta">' + meta + "</div>" : "") +
     (it.phone ? (tel ? '<a class="call" href="' + esc(tel) + '">📞 ' + esc(it.phone) + "</a>" : '<div class="meta"><div><b>Phone:</b> ' + esc(it.phone) + "</div></div>") : "") +
+    '<div class="acts"><button type="button" class="fixbtn" data-fix="' + it.key + '">' + (isFixed(it) ? "Reopen" : "Mark fixed") + "</button>" +
+    (st !== "fixed" ? '<button type="button" class="skipbtn" data-skip="' + it.key + '">' + (st === "skipped" ? "Edit skip note" : "Skip") + "</button>" : "") + "</div>" +
     "</article>";
 }
 function welcome(){
@@ -437,7 +464,7 @@ function welcome(){
     "<p>Pick the tracking Excel file (.xlsx). It is read right here on this device. Nothing is uploaded or sent anywhere.</p>" +
     (PREVIEW ? '<button class="big" id="wDemo" type="button">Show practice issues</button><p class="note">Preview with made-up names and addresses.</p>'
              : '<button class="big" id="wOpen" type="button">Open Excel sheet</button><button class="link" id="wDemo" type="button">Try it with practice issues</button>' +
-               '<p class="note">Version 5. The app remembers the sheet and your assignments on this device. Open a newer copy any time with Open sheet, and your assignments carry over.</p>') +
+               '<p class="note">Version 6. The app remembers the sheet and your assignments on this device. Open a newer copy any time with Open sheet, and your assignments carry over.</p>') +
     '<div id="werr"></div></div>';
 }
 function wireWelcome(){ if ($("wOpen")) $("wOpen").onclick = pick; $("wDemo").onclick = loadDemo; }
@@ -473,6 +500,8 @@ document.addEventListener("click", function(e){
   if (xb) { var xk = xb.getAttribute("data-fix"), xit = issues.filter(function(i){ return i.key === xk; })[0]; if (!xit) return;
     var now = !isFixed(xit); if (now === !!xit.resolved) delete saved.fixed[xk]; else saved.fixed[xk] = now;
     persist(); render(); toast(now ? "Marked fixed" : "Reopened"); return; }
+  var sb = e.target.closest("[data-skip]");
+  if (sb) { openSkip(sb.getAttribute("data-skip")); return; }
   var tb = e.target.closest("[data-take]");
   if (tb) { saved.asg[tb.getAttribute("data-take")] = {name: me(), at: Date.now()}; persist(); render(); toast("Added to My Assigned"); return; }
   var ab = e.target.closest("[data-asg]");
@@ -513,11 +542,47 @@ $("asgName").addEventListener("keydown", function(e){ if (e.key === "Enter") sav
 $("asgCancel").onclick = closeAssign;
 $("asgClear").onclick = function(){ delete saved.asg[assigningKey]; persist(); closeAssign(); render(); toast("Your assignment removed"); };
 $("asgBg").addEventListener("click", function(e){ if (e.target === this) closeAssign(); });
+var skipKey = null;
+function openSkip(k){
+  var it = issues.filter(function(x){ return x.key === k; })[0]; if (!it) return;
+  skipKey = k; var sk = saved.skip[k];
+  $("skipTitle").textContent = sk ? "Skip note" : "Skip this issue";
+  $("skipSub").textContent = (it.address || "No address") + (it.issue ? " · " + it.issue.slice(0, 60) + (it.issue.length > 60 ? "…" : "") : "");
+  $("skipNote").value = sk ? sk.note || "" : "";
+  $("skipSave").textContent = sk ? "Save" : "Skip";
+  $("skipUndo").classList.toggle("hide", !sk);
+  $("skipBg").classList.add("on");
+  setTimeout(function(){ $("skipNote").focus(); }, 220);
+}
+function closeSkip(){ $("skipBg").classList.remove("on"); skipKey = null; }
+$("skipSave").onclick = function(){
+  var had = !!saved.skip[skipKey];
+  saved.skip[skipKey] = {note: $("skipNote").value.trim(), at: had && saved.skip[skipKey].at || Date.now()};
+  persist(); closeSkip(); render(); toast(had ? "Note saved" : "Skipped. Find it under Skipped");
+};
+$("skipUndo").onclick = function(){ delete saved.skip[skipKey]; persist(); closeSkip(); render(); toast("Back in Open"); };
+$("skipCancel").onclick = closeSkip;
+$("skipBg").addEventListener("click", function(e){ if (e.target === this) closeSkip(); });
+function changeLines(){
+  return issues.filter(function(it){ return myAsg(it) || saved.skip[it.key] || saved.fixed[it.key] != null; }).map(function(it){
+    var bits = [];
+    if (myAsg(it)) bits.push("Assigned to " + myAsg(it));
+    if (saved.fixed[it.key] != null) bits.push(saved.fixed[it.key] ? "Fixed" : "Reopened");
+    if (saved.skip[it.key] && !isFixed(it)) bits.push("Skipped" + (saved.skip[it.key].note ? ": " + saved.skip[it.key].note : ""));
+    return {it: it, text: bits.join(". ")};
+  });
+}
 function openChanges(){
-  var mine = issues.filter(function(it){ return myAsg(it); });
-  $("chgList").innerHTML = mine.map(function(it){ return "<div><b>" + esc(myAsg(it)) + "</b> · " + esc(it.address || "No address") + (it.dateText ? " · " + esc(it.dateText) : "") + "</div>"; }).join("");
+  var rows = changeLines();
+  $("chgList").innerHTML = rows.length ? rows.map(function(r){ return "<div><b>" + esc(r.it.address || "No address") + '</b> <span class="when2">' + esc(r.it.dateText || "") + "</span><br>" + esc(r.text) + "</div>"; }).join("") : "<div>No changes yet.</div>";
   $("chgBg").classList.add("on");
 }
+$("chgCopy").onclick = function(){
+  var t = changeLines().map(function(r){ return (r.it.address || "No address") + (r.it.dateText ? " (" + r.it.dateText + ")" : "") + ": " + r.text; }).join("\n");
+  var done = function(){ toast("Copied"); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, function(){ toast("Couldn't copy on this phone"); });
+  else toast("Couldn't copy on this phone");
+};
 $("chgClose").onclick = function(){ $("chgBg").classList.remove("on"); };
 $("chgBg").addEventListener("click", function(e){ if (e.target === this) this.classList.remove("on"); });
 
@@ -533,7 +598,7 @@ $("chips").addEventListener("click", function(e){
   else { statusF = b.getAttribute("data-f"); document.querySelectorAll("[data-f]").forEach(function(x){ x.setAttribute("aria-pressed", x === b); }); }
   render();
 });
-document.addEventListener("keydown", function(e){ if (e.key === "Escape") { closeAssign(); $("chgBg").classList.remove("on"); } });
+document.addEventListener("keydown", function(e){ if (e.key === "Escape") { closeAssign(); closeSkip(); $("chgBg").classList.remove("on"); } });
 window.addEventListener("resize", setHdr);
 var tt; function toast(t){ var el = $("toast"); el.textContent = t; el.classList.add("on"); clearTimeout(tt); tt = setTimeout(function(){ el.classList.remove("on"); }, 1800); }
 
