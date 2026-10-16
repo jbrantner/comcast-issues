@@ -43,6 +43,9 @@ main{padding:12px 16px calc(90px + env(safe-area-inset-bottom));max-width:720px;
 .pill.res{background:#e7f3ec;color:var(--green)}
 .star{border:0;background:none;font-size:26px;line-height:1;padding:2px 2px 2px 8px;color:#c9bfc2}
 .star[aria-pressed=true]{color:var(--star)}
+.fixbtn{border:1px solid var(--line);background:#fff;color:var(--green);border-radius:10px;padding:5px 10px;font-size:13px;font-weight:700}
+.done .fixbtn{color:var(--muted)}
+.tag2{font-size:12px;color:var(--green);margin-top:2px}
 .asg .take{background:var(--brand);color:#fff}
 .asg .take + button{margin-left:0}
 .addr{font-weight:700;font-size:17px;margin-top:4px}
@@ -102,7 +105,7 @@ main{padding:12px 16px calc(90px + env(safe-area-inset-bottom));max-width:720px;
   <input class="search" id="q" type="search" placeholder="Search address, name, issue, person" autocomplete="off">
   <div class="chips" id="chips">
     <button class="chip" data-f="open" aria-pressed="true" type="button">Open</button>
-    <button class="chip" data-f="resolved" aria-pressed="false" type="button">Resolved</button>
+    <button class="chip" data-f="resolved" aria-pressed="false" type="button">Fixed</button>
     <button class="chip" data-f="all" aria-pressed="false" type="button">All</button>
     <button class="chip" id="unOnly" aria-pressed="false" type="button">Unassigned only</button>
     <button class="chip" id="sortBtn" aria-pressed="false" type="button">Newest first</button>
@@ -140,8 +143,8 @@ var PREVIEW = false;
 
 /* ---------- saved on this phone: favorites + my assignments, keyed by a hash of date + address ---------- */
 var STORE = "comcastIssues.v1";
-var saved = {fav:{}, asg:{}, names:[], me:""};
-try { var s = JSON.parse(localStorage.getItem(STORE) || "null"); if (s && typeof s === "object") { saved.fav = s.fav || {}; saved.asg = s.asg || {}; saved.names = s.names || []; saved.me = s.me || ""; } } catch (e) {}
+var saved = {fav:{}, asg:{}, names:[], me:"", fixed:{}};
+try { var s = JSON.parse(localStorage.getItem(STORE) || "null"); if (s && typeof s === "object") { saved.fav = s.fav || {}; saved.asg = s.asg || {}; saved.names = s.names || []; saved.me = s.me || ""; saved.fixed = s.fixed || {}; } } catch (e) {}
 var SHEET = "comcastIssues.sheet.v1";
 function saveSheet(){
   try {
@@ -199,6 +202,13 @@ function kids(el, name){ var out = []; if (!el) return out; for (var c = el.firs
 function kid(el, name){ return kids(el, name)[0] || null; }
 function allText(el){ var s = ""; if (!el) return s; var ts = el.getElementsByTagNameNS("*", "t"); for (var i = 0; i < ts.length; i++) { if (ts[i].parentNode.localName === "rPh") continue; s += ts[i].textContent; } return s; }
 
+function isOn(el){ return !!el && !/^(0|false)$/.test(el.getAttribute("val") || ""); }
+function isGreenColor(c){
+  if (!c) return false;
+  var rgb = c.getAttribute("rgb"); if (!rgb) return false; rgb = rgb.slice(-6);
+  var r = parseInt(rgb.slice(0,2),16), g = parseInt(rgb.slice(2,4),16), b = parseInt(rgb.slice(4,6),16);
+  return g >= 0x90 && g > r + 0x20 && g > b + 0x20;
+}
 function isRedColor(c){
   if (!c) return false;
   var rgb = c.getAttribute("rgb"), ix = c.getAttribute("indexed");
@@ -207,6 +217,7 @@ function isRedColor(c){
   return false;
 }
 // A rich-text cell becomes {text, red, rest}: red = the red line(s), rest = everything else
+function runsStruck(si){ var rs = kids(si, "r"); return rs.length > 0 && rs.every(function(r){ var pr = kid(r, "rPr"); return !!pr && isOn(kid(pr, "strike")) || !allText(r).trim(); }); }
 function richParts(si, cellRed){
   var runs = kids(si, "r");
   if (!runs.length) { var t = allText(si); return {text:t, red: cellRed ? t : "", rest: cellRed ? "" : t, rich:false}; }
@@ -232,13 +243,16 @@ async function readWorkbook(buf){
     }
   }
   // styles: which cell styles have a red font
-  var redXf = [];
+  var redXf = [], strikeXf = [], greenXf = [];
   var st = await z.text("xl/styles.xml");
   if (st) {
     var sd = xml(st), fontsEl = sd.getElementsByTagNameNS("*", "fonts")[0], fontRed = [];
     kids(fontsEl, "font").forEach(function(f){ fontRed.push(isRedColor(kid(f, "color"))); });
     var xfs = sd.getElementsByTagNameNS("*", "cellXfs")[0];
-    kids(xfs, "xf").forEach(function(x){ redXf.push(!!fontRed[+(x.getAttribute("fontId") || 0)]); });
+    var fontStrike = [], fillGreen = [];
+    kids(fontsEl, "font").forEach(function(f){ fontStrike.push(isOn(kid(f, "strike"))); });
+    kids(sd.getElementsByTagNameNS("*", "fills")[0], "fill").forEach(function(fl){ var pf = kid(fl, "patternFill"); fillGreen.push(!!pf && isGreenColor(kid(pf, "fgColor"))); });
+    kids(xfs, "xf").forEach(function(x){ var fid = +(x.getAttribute("fontId") || 0); redXf.push(!!fontRed[fid]); strikeXf.push(!!fontStrike[fid]); greenXf.push(!!fillGreen[+(x.getAttribute("fillId") || 0)]); });
   }
   var sst = [];
   var ss = await z.text("xl/sharedStrings.xml");
@@ -260,6 +274,8 @@ async function readWorkbook(buf){
       else if (t === "str" || t === "e") val = {text: v ? v.textContent : ""};
       else val = {text: v ? v.textContent : "", num: v && v.textContent !== "" ? +v.textContent : null, sIdx: sIdx};
       val.red = val.red || (cellRed && !val.rich ? val.text : val.red || "");
+      val.strike = !!strikeXf[sIdx] || (t === "s" && sst[+(v ? v.textContent : -1)] ? runsStruck(sst[+v.textContent]) : false);
+      val.green = !!greenXf[sIdx];
       cells[col] = val; col++;
     });
     rows.push({n: +(re.getAttribute("r") || r + 1), cells: cells});
@@ -276,7 +292,7 @@ var FIELDS = [
   ["phone", function(h){ return /phone/.test(h); }],
   ["issue", function(h){ return /issue/.test(h) && !/person|addressing/.test(h); }],
   ["person", function(h){ return /person|addressing/.test(h); }],
-  ["resolved", function(h){ return /^resolved$/.test(h); }],
+  ["resolved", function(h){ return /resolved|fixed|^done|complete|^status/.test(h) && !/note/.test(h); }],
   ["notes", function(h){ return /note/.test(h); }],
   ["avail", function(h){ return /timeframe|available|availability/.test(h); }]
 ];
@@ -310,7 +326,9 @@ function buildIssues(wbData){
     }
     var dv = dateCell && dateCell.num != null && isFinite(dateCell.num) ? excelDate(dateCell.num, wbData.d1904) : null;
     var resCell = get("resolved"), resolved = false;
-    if (resCell) resolved = resCell.bool === true || /^(true|yes|y|x|done|resolved|complete|completed|1|✓|✔)$/i.test(String(resCell.text || "").trim());
+    if (resCell) resolved = resCell.bool === true || saysFixed(resCell.text, true);
+    if (!resolved && saysFixed(txt("notes"), false)) resolved = true; // notes that start with "Fixed", "Resolved", "Done"
+    if (!resolved) { var ac = get("address"), ic = get("issue"); if ((ac && ac.strike) || (ic && ic.strike) || (ac && ac.green && ic && ic.green)) resolved = true; } // crossed out or filled green
     var keyBase = (dv ? dv.getTime() : txt("date")) + "|" + norm(txt("address"));
     seen[keyBase] = (seen[keyBase] || 0) + 1;
     out.push({
@@ -322,6 +340,12 @@ function buildIssues(wbData){
     });
   }
   return out;
+}
+function saysFixed(v, short){
+  var t = String(v == null ? "" : v).trim().toLowerCase();
+  if (!t || /^(no|not|n\b|false|0$|pending|open|in progress|waiting|partial)/.test(t)) return false;
+  if (/^(fixed|resolved|done|complete|completed|closed|finished|all set|working now|✓|✔|☑|✅)/.test(t)) return true;
+  return short && /^(true|yes|y|x|1)$/.test(t);
 }
 function availText(cell, d1904){
   if (!cell) return "";
@@ -341,6 +365,7 @@ var $ = function(id){ return document.getElementById(id); };
 function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
 function myAsg(it){ return saved.asg[it.key] && saved.asg[it.key].name || ""; }
 function shownAsg(it){ return myAsg(it) || it.assigned; }
+function isFixed(it){ return saved.fixed[it.key] != null ? !!saved.fixed[it.key] : !!it.resolved; }
 function me(){ return saved.me || "Jordan"; }
 function isMine(it){ var a = norm(shownAsg(it)), m = norm(me()); if (!a || !m) return false; return (" " + a.replace(/[^a-z0-9]+/g, " ") + " ").indexOf(" " + m + " ") > -1; }
 function telHref(p){ var d = String(p).replace(/[^\d+]/g, ""); return d.replace(/\D/g, "").length >= 7 ? "tel:" + d : ""; }
@@ -349,8 +374,8 @@ function filtered(){
   var qq = norm(q);
   var list = issues.filter(function(it){
     if (view === "mine" && !isMine(it)) return false;
-    if (statusF === "open" && it.resolved) return false;
-    if (statusF === "resolved" && !it.resolved) return false;
+    if (statusF === "open" && isFixed(it)) return false;
+    if (statusF === "resolved" && !isFixed(it)) return false;
     if (unOnly && shownAsg(it)) return false;
     if (qq) { var hay = norm([it.address, it.name, it.issue, it.assigned, myAsg(it), it.person, it.notes, it.avail, it.phone, it.dateText].join(" ")); if (qq.split(" ").some(function(w){ return hay.indexOf(w) < 0; })) return false; }
     return true;
@@ -362,8 +387,8 @@ function filtered(){
 function render(){
   var hasData = issues.length > 0 || fileInfo;
   $("bar").classList.toggle("hide", !hasData);
-  $("nAll").textContent = issues.filter(function(it){ return !it.resolved; }).length;
-  $("nMine").textContent = issues.filter(function(it){ return !it.resolved && isMine(it); }).length;
+  $("nAll").textContent = issues.filter(function(it){ return !isFixed(it); }).length;
+  $("nMine").textContent = issues.filter(function(it){ return !isFixed(it) && isMine(it); }).length;
   $("tabAll").setAttribute("aria-selected", view === "all");
   $("tabMine").setAttribute("aria-selected", view === "mine");
   setHdr();
@@ -378,7 +403,7 @@ function render(){
   var mine = issues.filter(function(it){ return myAsg(it); }).length;
   h += '<div class="foot">' + esc(fileInfo ? fileInfo.name : "") + " · " + issues.length + " issues" + (fileInfo ? " · opened " + esc(fileInfo.at) : "") +
        (mine ? '<br><button type="button" id="chgOpen">My assignments (' + mine + ")</button>" : "") +
-       '<br>You are ' + esc(me()) + ' · <button type="button" id="meBtn">Change name</button>' + (PREVIEW ? "" : '<br><button type="button" id="forget">Remove sheet from this phone</button>') + '<br>Version 4</div>';
+       '<br>You are ' + esc(me()) + ' · <button type="button" id="meBtn">Change name</button>' + (PREVIEW ? "" : '<br><button type="button" id="forget">Remove sheet from this phone</button>') + '<br>Version 5</div>';
   m.innerHTML = h;
   if ($("chgOpen")) $("chgOpen").onclick = openChanges;
   if ($("meBtn")) $("meBtn").onclick = function(){ openAssign(null); };
@@ -394,10 +419,11 @@ function card(it){
   if (it.notes) meta += "<div><b>Notes:</b> " + esc(it.notes) + "</div>";
   if (it.person) meta += "<div><b>Person Addressing issue:</b> " + esc(it.person) + "</div>";
   var tel = it.phone ? telHref(it.phone) : "";
-  return '<article class="card' + (it.resolved ? " done" : "") + '">' +
+  return '<article class="card' + (isFixed(it) ? " done" : "") + '">' +
     '<div class="row1"><span class="when">' + esc(it.dateText || "No date") + '</span>' +
-    '<span class="pill ' + (it.resolved ? 'res">Resolved' : 'open">Open') + '</span>' +
-    "</div>" +
+    '<span class="pill ' + (isFixed(it) ? 'res">Fixed' : 'open">Open') + '</span>' +
+    '<button type="button" class="fixbtn" data-fix="' + it.key + '">' + (isFixed(it) ? "Reopen" : "Mark fixed") + "</button></div>" +
+    (saved.fixed[it.key] != null && !!saved.fixed[it.key] !== !!it.resolved ? '<div class="tag2">' + (isFixed(it) ? "Marked fixed by you" : "Reopened by you") + "</div>" : "") +
     '<div class="addr">' + esc(it.address || "No address") + "</div>" +
     (it.name ? '<div class="who">' + esc(it.name) + "</div>" : "") +
     (it.issue ? '<div class="issue">' + esc(it.issue) + "</div>" : "") +
@@ -411,7 +437,7 @@ function welcome(){
     "<p>Pick the tracking Excel file (.xlsx). It is read right here on this device. Nothing is uploaded or sent anywhere.</p>" +
     (PREVIEW ? '<button class="big" id="wDemo" type="button">Show practice issues</button><p class="note">Preview with made-up names and addresses.</p>'
              : '<button class="big" id="wOpen" type="button">Open Excel sheet</button><button class="link" id="wDemo" type="button">Try it with practice issues</button>' +
-               '<p class="note">Version 4. The app remembers the sheet and your assignments on this device. Open a newer copy any time with Open sheet, and your assignments carry over.</p>') +
+               '<p class="note">Version 5. The app remembers the sheet and your assignments on this device. Open a newer copy any time with Open sheet, and your assignments carry over.</p>') +
     '<div id="werr"></div></div>';
 }
 function wireWelcome(){ if ($("wOpen")) $("wOpen").onclick = pick; $("wDemo").onclick = loadDemo; }
@@ -443,6 +469,10 @@ function learnNames(){
 
 /* ---------- favorites + assigning ---------- */
 document.addEventListener("click", function(e){
+  var xb = e.target.closest("[data-fix]");
+  if (xb) { var xk = xb.getAttribute("data-fix"), xit = issues.filter(function(i){ return i.key === xk; })[0]; if (!xit) return;
+    var now = !isFixed(xit); if (now === !!xit.resolved) delete saved.fixed[xk]; else saved.fixed[xk] = now;
+    persist(); render(); toast(now ? "Marked fixed" : "Reopened"); return; }
   var tb = e.target.closest("[data-take]");
   if (tb) { saved.asg[tb.getAttribute("data-take")] = {name: me(), at: Date.now()}; persist(); render(); toast("Added to My Assigned"); return; }
   var ab = e.target.closest("[data-asg]");
