@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#962B42">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Comcast Issues">
+<title>Comcast Issues</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+:root{
+  --brand:#962B42; --brand-dark:#7a2236; --accent:#C05133;
+  --bg:#ffffff; --card:#ffffff; --soft:#f6f2f3; --line:#e6dde0;
+  --text:#231f20; --muted:#6b6265; --red:#c4151c; --green:#2e7d4f; --star:#e0a100;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;-webkit-text-size-adjust:100%}
+button{font:inherit;color:inherit;cursor:pointer}
+header{position:sticky;top:0;z-index:5;background:var(--brand);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 0}
+.top{display:flex;align-items:center;gap:10px}
+.top h1{font-size:19px;margin:0;flex:1;font-weight:700;letter-spacing:.2px}
+.top .open{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:10px;padding:7px 12px;font-size:14px}
+.tabs{display:flex;margin-top:10px}
+.tab{flex:1;background:none;border:0;color:rgba(255,255,255,.75);padding:10px 4px 11px;font-weight:600;font-size:15px;border-bottom:3px solid transparent}
+.tab[aria-selected=true]{color:#fff;border-bottom-color:#fff}
+.tab .n{display:inline-block;min-width:22px;padding:0 6px;margin-left:6px;border-radius:11px;background:rgba(255,255,255,.2);font-size:13px}
+.bar{position:sticky;top:var(--hdr,96px);z-index:4;background:#fff;border-bottom:1px solid var(--line);padding:10px 16px}
+.search{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:16px;background:var(--soft)}
+.chips{display:flex;gap:8px;margin-top:9px;overflow-x:auto;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 12px;font-size:14px;color:var(--muted)}
+.chip[aria-pressed=true]{background:var(--brand);border-color:var(--brand);color:#fff}
+main{padding:12px 16px calc(90px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.card.done{background:#fbfaf9}
+.row1{display:flex;align-items:center;gap:8px}
+.when{font-size:13px;color:var(--muted);flex:1}
+.pill{font-size:12px;font-weight:700;border-radius:999px;padding:2px 9px}
+.pill.open{background:#fdeee9;color:var(--accent)}
+.pill.res{background:#e7f3ec;color:var(--green)}
+.star{border:0;background:none;font-size:26px;line-height:1;padding:2px 2px 2px 8px;color:#c9bfc2}
+.star[aria-pressed=true]{color:var(--star)}
+.addr{font-weight:700;font-size:17px;margin-top:4px}
+.who{color:var(--muted);font-size:15px}
+.issue{margin-top:8px;white-space:pre-wrap;word-break:break-word}
+.asg{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);flex-wrap:wrap}
+.asg .lbl{font-size:13px;color:var(--muted)}
+.asg .name{color:var(--red);font-weight:600;white-space:pre-wrap}
+.asg .mine{color:var(--brand)}
+.asg .none{background:#fff4d6;color:#8a6100;font-size:13px;font-weight:700;border-radius:8px;padding:2px 8px}
+.asg .tag{font-size:12px;color:var(--muted)}
+.asg button{margin-left:auto;border:1px solid var(--brand);color:var(--brand);background:#fff;border-radius:10px;padding:6px 12px;font-size:14px;font-weight:600}
+.meta{margin-top:8px;font-size:14px;color:var(--muted);display:grid;gap:3px}
+.meta b{color:var(--text);font-weight:600}
+.call{display:inline-block;margin-top:9px;color:var(--brand);font-weight:600;text-decoration:none;border:1px solid var(--line);border-radius:10px;padding:6px 12px;font-size:14px}
+.empty{text-align:center;color:var(--muted);padding:40px 10px}
+.welcome{text-align:center;padding:36px 8px}
+.welcome h2{margin:0 0 6px;font-size:22px}
+.welcome p{color:var(--muted);margin:6px auto 0;max-width:420px}
+.big{display:block;width:100%;max-width:360px;margin:22px auto 0;background:var(--brand);color:#fff;border:0;border-radius:14px;padding:15px;font-size:17px;font-weight:700}
+.link{display:block;margin:14px auto 0;background:none;border:0;color:var(--brand);font-weight:600;text-decoration:underline}
+.note{font-size:13px;color:var(--muted);margin-top:22px}
+.foot{font-size:13px;color:var(--muted);text-align:center;margin-top:16px}
+.foot button{border:0;background:none;color:var(--brand);text-decoration:underline;font-size:13px}
+.err{background:#fdecec;color:#8b1a1a;border-radius:12px;padding:12px;margin:12px 0}
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:20;display:none}
+.sheet-bg.on{display:block}
+.sheet{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto;transform:translateY(105%);transition:transform .2s ease}
+.sheet-bg.on .sheet{transform:none}
+.sheet h3{margin:0 0 2px;font-size:18px}
+.sheet .sub{color:var(--muted);font-size:14px;margin-bottom:12px}
+.sheet input{width:100%;font-size:17px;border:1px solid var(--line);border-radius:12px;padding:12px}
+.sheet .chips{flex-wrap:wrap;overflow:visible}
+.btns{display:flex;gap:10px;margin-top:16px}
+.btns button{flex:1;border-radius:12px;padding:13px;font-weight:700;font-size:16px;border:1px solid var(--line);background:#fff}
+.btns .go{background:var(--brand);border-color:var(--brand);color:#fff}
+.btns .clr{color:var(--red)}
+.list{max-height:55vh;overflow:auto}
+.list div{padding:9px 0;border-bottom:1px solid var(--line);font-size:15px}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#231f20;color:#fff;border-radius:999px;padding:9px 16px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:30}
+.toast.on{opacity:1}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<header id="hdr">
+  <div class="top">
+    <h1>Comcast Issues</h1>
+    <button class="open" id="openBtn" type="button">Open sheet</button>
+  </div>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tabAll" aria-selected="true" type="button">All Issues<span class="n" id="nAll">0</span></button>
+    <button class="tab" role="tab" id="tabFav" aria-selected="false" type="button">Favorites<span class="n" id="nFav">0</span></button>
+  </div>
+</header>
+<div class="bar hide" id="bar">
+  <input class="search" id="q" type="search" placeholder="Search address, name, issue, person" autocomplete="off">
+  <div class="chips" id="chips">
+    <button class="chip" data-f="open" aria-pressed="true" type="button">Open</button>
+    <button class="chip" data-f="resolved" aria-pressed="false" type="button">Resolved</button>
+    <button class="chip" data-f="all" aria-pressed="false" type="button">All</button>
+    <button class="chip" id="unOnly" aria-pressed="false" type="button">Unassigned only</button>
+    <button class="chip" id="sortBtn" aria-pressed="false" type="button">Newest first</button>
+  </div>
+</div>
+<main id="main"></main>
+<input type="file" id="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hide">
+
+<div class="sheet-bg" id="asgBg">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="asgTitle">
+    <h3 id="asgTitle">Assign</h3>
+    <div class="sub" id="asgSub"></div>
+    <input id="asgName" type="text" placeholder="Type a first name" autocomplete="off" autocapitalize="words">
+    <div class="chips" id="asgChips"></div>
+    <div class="btns">
+      <button type="button" class="clr" id="asgClear">Remove</button>
+      <button type="button" id="asgCancel">Cancel</button>
+      <button type="button" class="go" id="asgSave">Save</button>
+    </div>
+  </div>
+</div>
+<div class="sheet-bg" id="chgBg">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="chgTitle">
+    <h3 id="chgTitle">My assignments</h3>
+    <div class="sub">These are saved on this phone only. Add them to the real sheet when you can.</div>
+    <div class="list" id="chgList"></div>
+    <div class="btns"><button type="button" class="go" id="chgClose">Done</button></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+var PREVIEW = false;
+
+/* ---------- saved on this phone: favorites + my assignments, keyed by a hash of date + address ---------- */
+var STORE = "comcastIssues.v1";
+var saved = {fav:{}, asg:{}, names:[]};
+try { var s = JSON.parse(localStorage.getItem(STORE) || "null"); if (s && typeof s === "object") { saved.fav = s.fav || {}; saved.asg = s.asg || {}; saved.names = s.names || []; } } catch (e) {}
+function persist(){ try { localStorage.setItem(STORE, JSON.stringify(saved)); } catch (e) { toast("Couldn't save on this phone"); } }
+
+function hash(str){ // FNV-1a, two 32-bit lanes; stored instead of the address itself
+  var h1 = 0x811c9dc5, h2 = 0x01000193 ^ 0x5bd1e995;
+  for (var i = 0; i < str.length; i++) { var c = str.charCodeAt(i); h1 = Math.imul(h1 ^ c, 16777619); h2 = Math.imul(h2 ^ c, 2246822519); }
+  return (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36);
+}
+
+/* ---------- tiny .xlsx reader (zip + XML), all on the phone ---------- */
+function u16(b,o){return b[o]|(b[o+1]<<8)}
+function u32(b,o){return (b[o]|(b[o+1]<<8)|(b[o+2]<<16)|(b[o+3]<<24))>>>0}
+async function unzip(buf){
+  var b = new Uint8Array(buf), eocd = -1;
+  for (var i = b.length - 22; i >= Math.max(0, b.length - 66000); i--) if (u32(b,i) === 0x06054b50) { eocd = i; break; }
+  if (eocd < 0) throw new Error("not-zip");
+  var n = u16(b,eocd+10), p = u32(b,eocd+16), files = {};
+  for (var k = 0; k < n; k++) {
+    if (u32(b,p) !== 0x02014b50) throw new Error("not-zip");
+    var meth = u16(b,p+10), csize = u32(b,p+20), nl = u16(b,p+28), xl = u16(b,p+30), cl = u16(b,p+32), lo = u32(b,p+42);
+    var name = new TextDecoder().decode(b.subarray(p+46, p+46+nl));
+    files[name] = {meth:meth, csize:csize, lo:lo};
+    p += 46 + nl + xl + cl;
+  }
+  return {
+    has: function(nm){ return !!files[nm]; },
+    text: async function(nm){
+      var f = files[nm]; if (!f) return null;
+      var start = f.lo + 30 + u16(b,f.lo+26) + u16(b,f.lo+28), data = b.subarray(start, start + f.csize);
+      if (f.meth === 0) return new TextDecoder().decode(data);
+      if (f.meth !== 8) throw new Error("zip-method");
+      if (typeof DecompressionStream === "undefined") throw new Error("old-browser");
+      var ds = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+      return await new Response(ds).text();
+    }
+  };
+}
+function xml(t){ return new DOMParser().parseFromString(t, "application/xml"); }
+function kids(el, name){ var out = []; if (!el) return out; for (var c = el.firstElementChild; c; c = c.nextElementSibling) if (c.localName === name) out.push(c); return out; }
+function kid(el, name){ return kids(el, name)[0] || null; }
+function allText(el){ var s = ""; if (!el) return s; var ts = el.getElementsByTagNameNS("*", "t"); for (var i = 0; i < ts.length; i++) { if (ts[i].parentNode.localName === "rPh") continue; s += ts[i].textContent; } return s; }
+
+function isRedColor(c){
+  if (!c) return false;
+  var rgb = c.getAttribute("rgb"), ix = c.getAttribute("indexed");
+  if (rgb) { rgb = rgb.slice(-6); var r = parseInt(rgb.slice(0,2),16), g = parseInt(rgb.slice(2,4),16), bl = parseInt(rgb.slice(4,6),16); return r >= 0xB0 && g < 0x70 && bl < 0x70; }
+  if (ix) return ix === "2" || ix === "10" || ix === "16" || ix === "53";
+  return false;
+}
+// A rich-text cell becomes {text, red, rest}: red = the red line(s), rest = everything else
+function richParts(si, cellRed){
+  var runs = kids(si, "r");
+  if (!runs.length) { var t = allText(si); return {text:t, red: cellRed ? t : "", rest: cellRed ? "" : t, rich:false}; }
+  var red = "", rest = "";
+  runs.forEach(function(r){ var t = allText(r), pr = kid(r, "rPr"), c = pr ? kid(pr, "color") : null; var isRed = c ? isRedColor(c) : cellRed; if (isRed) red += t; else rest += t; });
+  return {text: red + rest, red: red, rest: rest, rich:true};
+}
+
+async function readWorkbook(buf){
+  var z = await unzip(buf);
+  var wb = xml(await z.text("xl/workbook.xml") || "");
+  var d1904 = false, wp = wb.getElementsByTagNameNS("*", "workbookPr")[0];
+  if (wp && /^(1|true)$/.test(wp.getAttribute("date1904") || "")) d1904 = true;
+  var sheets = wb.getElementsByTagNameNS("*", "sheet"), target = "xl/worksheets/sheet1.xml";
+  if (sheets.length) {
+    var first = null;
+    for (var i = 0; i < sheets.length; i++) if ((sheets[i].getAttribute("state") || "visible") === "visible") { first = sheets[i]; break; }
+    first = first || sheets[0];
+    var rid = first.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id") || first.getAttribute("r:id");
+    var rels = xml(await z.text("xl/_rels/workbook.xml.rels") || "<x/>").getElementsByTagNameNS("*", "Relationship");
+    for (var j = 0; j < rels.length; j++) if (rels[j].getAttribute("Id") === rid) {
+      var tg = rels[j].getAttribute("Target"); target = tg.charAt(0) === "/" ? tg.slice(1) : "xl/" + tg.replace(/^\.\//, "");
+    }
+  }
+  // styles: which cell styles have a red font
+  var redXf = [];
+  var st = await z.text("xl/styles.xml");
+  if (st) {
+    var sd = xml(st), fontsEl = sd.getElementsByTagNameNS("*", "fonts")[0], fontRed = [];
+    kids(fontsEl, "font").forEach(function(f){ fontRed.push(isRedColor(kid(f, "color"))); });
+    var xfs = sd.getElementsByTagNameNS("*", "cellXfs")[0];
+    kids(xfs, "xf").forEach(function(x){ redXf.push(!!fontRed[+(x.getAttribute("fontId") || 0)]); });
+  }
+  var sst = [];
+  var ss = await z.text("xl/sharedStrings.xml");
+  if (ss) kids(xml(ss).documentElement, "si").forEach(function(si){ sst.push(si); });
+  var sx = await z.text(target);
+  if (!sx) throw new Error("no-sheet");
+  var sheet = xml(sx), rows = [];
+  var rowEls = sheet.getElementsByTagNameNS("*", "row");
+  for (var r = 0; r < rowEls.length; r++) {
+    var re = rowEls[r];
+    if (/^(1|true)$/.test(re.getAttribute("hidden") || "")) continue; // never show hidden rows
+    var cells = [], cs = kids(re, "c"), col = 0;
+    cs.forEach(function(c){
+      var ref = c.getAttribute("r"); if (ref) col = colIndex(ref);
+      var t = c.getAttribute("t") || "n", sIdx = +(c.getAttribute("s") || 0), cellRed = !!redXf[sIdx], v = kid(c, "v"), val;
+      if (t === "s") { var si = sst[+(v ? v.textContent : -1)]; val = si ? richParts(si, cellRed) : {text:""}; }
+      else if (t === "inlineStr") val = richParts(kid(c, "is"), cellRed);
+      else if (t === "b") val = {text: v && v.textContent === "1" ? "TRUE" : "FALSE", bool: v && v.textContent === "1"};
+      else if (t === "str" || t === "e") val = {text: v ? v.textContent : ""};
+      else val = {text: v ? v.textContent : "", num: v && v.textContent !== "" ? +v.textContent : null, sIdx: sIdx};
+      val.red = val.red || (cellRed && !val.rich ? val.text : val.red || "");
+      cells[col] = val; col++;
+    });
+    rows.push({n: +(re.getAttribute("r") || r + 1), cells: cells});
+  }
+  return {rows: rows, d1904: d1904};
+}
+function colIndex(ref){ var m = /^[A-Z]+/.exec(ref), n = 0; if (!m) return 0; for (var i = 0; i < m[0].length; i++) n = n * 26 + (m[0].charCodeAt(i) - 64); return n - 1; }
+
+/* ---------- turn sheet rows into issues ---------- */
+var FIELDS = [
+  ["date", function(h){ return /^date/.test(h) || /request came in/.test(h); }],
+  ["address", function(h){ return /address/.test(h); }],
+  ["name", function(h){ return /name/.test(h); }],
+  ["phone", function(h){ return /phone/.test(h); }],
+  ["issue", function(h){ return /issue/.test(h) && !/person|addressing/.test(h); }],
+  ["person", function(h){ return /person|addressing/.test(h); }],
+  ["resolved", function(h){ return /^resolved$/.test(h); }],
+  ["notes", function(h){ return /note/.test(h); }],
+  ["avail", function(h){ return /timeframe|available|availability/.test(h); }]
+];
+function norm(s){ return String(s || "").toLowerCase().replace(/\s+/g, " ").trim(); }
+function buildIssues(wbData){
+  var rows = wbData.rows, hdrAt = -1, map = {};
+  for (var i = 0; i < Math.min(rows.length, 15); i++) {
+    var hs = rows[i].cells.map(function(c){ return norm(c && c.text); });
+    if (hs.some(function(h){ return /address/.test(h); }) && hs.some(function(h){ return /issue/.test(h); })) {
+      hdrAt = i;
+      hs.forEach(function(h, ci){ if (!h) return; for (var f = 0; f < FIELDS.length; f++) { var k = FIELDS[f][0]; if (map[k] == null && FIELDS[f][1](h)) { map[k] = ci; break; } } });
+      break;
+    }
+  }
+  if (hdrAt < 0) { hdrAt = 0; FIELDS.forEach(function(f, ci){ map[f[0]] = ci; }); } // same order as the template, A to I
+  var out = [], seen = {};
+  for (var r = hdrAt + 1; r < rows.length; r++) {
+    var c = rows[r].cells, get = function(k){ return map[k] == null ? null : c[map[k]] || null; };
+    var txt = function(k){ var v = get(k); return v ? String(v.text || "").trim() : ""; };
+    var dateCell = get("date"), nameCell = get("name");
+    if (!txt("address") && !txt("issue") && !txt("name") && !txt("phone")) continue;
+    // Name column: red line = who's assigned or a note; black line = the resident's name
+    var assigned = "", resName = "";
+    if (nameCell) {
+      if (nameCell.rich || nameCell.red) { assigned = (nameCell.red || "").trim(); resName = (nameCell.rest != null ? nameCell.rest : nameCell.text || "").trim(); }
+      else {
+        var lines = String(nameCell.text || "").split(/\r?\n/).map(function(s){ return s.trim(); }).filter(Boolean);
+        if (lines.length >= 2) { assigned = lines[0]; resName = lines.slice(1).join(" "); } else resName = lines[0] || "";
+      }
+      if (nameCell.rich && !resName && assigned.indexOf("\n") > -1) { var ls = assigned.split(/\r?\n/); assigned = ls[0].trim(); resName = ls.slice(1).join(" ").trim(); }
+    }
+    var dv = dateCell && dateCell.num != null && isFinite(dateCell.num) ? excelDate(dateCell.num, wbData.d1904) : null;
+    var resCell = get("resolved"), resolved = false;
+    if (resCell) resolved = resCell.bool === true || /^(true|yes|y|x|done|resolved|complete|completed|1|✓|✔)$/i.test(String(resCell.text || "").trim());
+    var keyBase = (dv ? dv.getTime() : txt("date")) + "|" + norm(txt("address"));
+    seen[keyBase] = (seen[keyBase] || 0) + 1;
+    out.push({
+      key: hash(keyBase + "|" + seen[keyBase]),
+      row: rows[r].n, date: dv, dateText: dv ? fmtDate(dv) : txt("date"),
+      address: txt("address"), name: resName.replace(/\s*\n\s*/g, " "), assigned: assigned,
+      phone: txt("phone"), issue: txt("issue"), person: txt("person"),
+      resolved: resolved, notes: txt("notes"), avail: availText(get("avail"), wbData.d1904)
+    });
+  }
+  return out;
+}
+function availText(cell, d1904){
+  if (!cell) return "";
+  if (cell.num != null && isFinite(cell.num) && cell.num > 20000 && cell.num < 80000) return fmtDate(excelDate(cell.num, d1904));
+  return String(cell.text || "").trim();
+}
+function excelDate(n, d1904){ var ms = Math.round((n + (d1904 ? 1462 : 0) - 25569) * 86400000); var d = new Date(ms); return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes()); }
+function fmtDate(d){
+  var s = (d.getMonth() + 1) + "/" + d.getDate() + "/" + String(d.getFullYear()).slice(-2);
+  if (d.getHours() || d.getMinutes()) { var h = d.getHours() % 12 || 12; s += " " + h + ":" + String(d.getMinutes()).padStart(2, "0") + " " + (d.getHours() < 12 ? "AM" : "PM"); }
+  return s;
+}
+
+/* ---------- state + rendering ---------- */
+var issues = [], fileInfo = null, view = "all", statusF = "open", unOnly = false, newest = true, q = "", assigningKey = null;
+var $ = function(id){ return document.getElementById(id); };
+function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+function myAsg(it){ return saved.asg[it.key] && saved.asg[it.key].name || ""; }
+function shownAsg(it){ return myAsg(it) || it.assigned; }
+function telHref(p){ var d = String(p).replace(/[^\d+]/g, ""); return d.replace(/\D/g, "").length >= 7 ? "tel:" + d : ""; }
+
+function filtered(){
+  var qq = norm(q);
+  var list = issues.filter(function(it){
+    if (view === "fav" && !saved.fav[it.key]) return false;
+    if (statusF === "open" && it.resolved) return false;
+    if (statusF === "resolved" && !it.resolved) return false;
+    if (unOnly && shownAsg(it)) return false;
+    if (qq) { var hay = norm([it.address, it.name, it.issue, it.assigned, myAsg(it), it.person, it.notes, it.avail, it.phone, it.dateText].join(" ")); if (qq.split(" ").some(function(w){ return hay.indexOf(w) < 0; })) return false; }
+    return true;
+  });
+  list.sort(function(a, b){ var x = a.date ? a.date.getTime() : 0, y = b.date ? b.date.getTime() : 0; return (newest ? y - x : x - y) || (newest ? b.row - a.row : a.row - b.row); });
+  return list;
+}
+
+function render(){
+  var hasData = issues.length > 0 || fileInfo;
+  $("bar").classList.toggle("hide", !hasData);
+  $("nAll").textContent = issues.filter(function(it){ return !it.resolved; }).length;
+  $("nFav").textContent = issues.filter(function(it){ return saved.fav[it.key]; }).length;
+  $("tabAll").setAttribute("aria-selected", view === "all");
+  $("tabFav").setAttribute("aria-selected", view === "fav");
+  setHdr();
+  var m = $("main");
+  if (!hasData) { m.innerHTML = welcome(); wireWelcome(); return; }
+  var list = filtered(), h = "";
+  if (!list.length) {
+    h = '<div class="empty">' + (view === "fav" && !Object.keys(saved.fav).some(function(k){ return issues.some(function(it){ return it.key === k; }); })
+      ? "No favorites yet.<br>Tap the ☆ on any issue in All Issues to add it here."
+      : "Nothing matches.") + "</div>";
+  } else h = list.map(card).join("");
+  var mine = issues.filter(function(it){ return myAsg(it); }).length;
+  h += '<div class="foot">' + esc(fileInfo ? fileInfo.name : "") + " · " + issues.length + " issues" + (fileInfo ? " · opened " + esc(fileInfo.at) : "") +
+       (mine ? '<br><button type="button" id="chgOpen">My assignments (' + mine + ")</button>" : "") + "</div>";
+  m.innerHTML = h;
+  if ($("chgOpen")) $("chgOpen").onclick = openChanges;
+}
+function card(it){
+  var mine = myAsg(it), fav = !!saved.fav[it.key], asg;
+  if (mine) asg = '<span class="lbl">Assigned</span><span class="name mine">' + esc(mine) + '</span><span class="tag">(added by you' + (it.assigned ? ", sheet says " + esc(it.assigned) : "") + ')</span><button type="button" data-asg="' + it.key + '">Change</button>';
+  else if (it.assigned) asg = '<span class="lbl">Assigned</span><span class="name">' + esc(it.assigned) + '</span><button type="button" data-asg="' + it.key + '">Change</button>';
+  else asg = '<span class="none">Unassigned</span><button type="button" data-asg="' + it.key + '">Assign</button>';
+  var meta = "";
+  if (it.avail) meta += "<div><b>Available:</b> " + esc(it.avail) + "</div>";
+  if (it.notes) meta += "<div><b>Notes:</b> " + esc(it.notes) + "</div>";
+  if (it.person) meta += "<div><b>Person Addressing issue:</b> " + esc(it.person) + "</div>";
+  var tel = it.phone ? telHref(it.phone) : "";
+  return '<article class="card' + (it.resolved ? " done" : "") + '">' +
+    '<div class="row1"><span class="when">' + esc(it.dateText || "No date") + '</span>' +
+    '<span class="pill ' + (it.resolved ? 'res">Resolved' : 'open">Open') + '</span>' +
+    '<button type="button" class="star" data-fav="' + it.key + '" aria-pressed="' + fav + '" aria-label="' + (fav ? "Remove from favorites" : "Add to favorites") + '">' + (fav ? "★" : "☆") + "</button></div>" +
+    '<div class="addr">' + esc(it.address || "No address") + "</div>" +
+    (it.name ? '<div class="who">' + esc(it.name) + "</div>" : "") +
+    (it.issue ? '<div class="issue">' + esc(it.issue) + "</div>" : "") +
+    '<div class="asg">' + asg + "</div>" +
+    (meta ? '<div class="meta">' + meta + "</div>" : "") +
+    (it.phone ? (tel ? '<a class="call" href="' + esc(tel) + '">📞 ' + esc(it.phone) + "</a>" : '<div class="meta"><div><b>Phone:</b> ' + esc(it.phone) + "</div></div>") : "") +
+    "</article>";
+}
+function welcome(){
+  return '<div class="welcome"><h2>Open your issues sheet</h2>' +
+    "<p>Pick the tracking Excel file (.xlsx). It is read right here on this device. Nothing is uploaded or sent anywhere.</p>" +
+    (PREVIEW ? '<button class="big" id="wDemo" type="button">Show practice issues</button><p class="note">Preview with made-up names and addresses.</p>'
+             : '<button class="big" id="wOpen" type="button">Open Excel sheet</button><button class="link" id="wDemo" type="button">Try it with practice issues</button>' +
+               '<p class="note">Favorites and assignments you add stay on this device. Opening a newer copy of the sheet keeps them.</p>') +
+    '<div id="werr"></div></div>';
+}
+function wireWelcome(){ if ($("wOpen")) $("wOpen").onclick = pick; $("wDemo").onclick = loadDemo; }
+function setHdr(){ document.documentElement.style.setProperty("--hdr", $("hdr").offsetHeight + "px"); }
+
+function pick(){ if (PREVIEW) { loadDemo(); return; } $("file").value = ""; $("file").click(); }
+$("file").addEventListener("change", async function(){
+  var f = this.files && this.files[0]; if (!f) return;
+  try {
+    var data = await readWorkbook(await f.arrayBuffer());
+    issues = buildIssues(data);
+    fileInfo = {name: f.name, at: fmtDate(new Date()).replace(/^\S+\s?/, "") || "now"};
+    if (!issues.length) toast("No issues found in that sheet");
+    learnNames(); render(); window.scrollTo(0, 0);
+  } catch (e) { showErr(e); }
+});
+function showErr(e){
+  var msg = e && e.message === "old-browser" ? "This browser is too old to open Excel files. Try the newest Chrome or Safari."
+    : e && e.message === "not-zip" ? "That doesn't look like an .xlsx file. In Excel, use File, Save As, Excel Workbook (.xlsx)."
+    : "Couldn't read that file. Make sure it's the issues sheet saved as .xlsx.";
+  var box = $("werr");
+  if (box) box.innerHTML = '<div class="err">' + esc(msg) + "</div>"; else toast(msg);
+}
+function learnNames(){
+  var seen = {}; saved.names.forEach(function(n){ seen[n.toLowerCase()] = 1; });
+  issues.forEach(function(it){ var a = it.assigned; if (a && a.length <= 20 && a.split(/\s+/).length <= 2 && !seen[a.toLowerCase()]) { seen[a.toLowerCase()] = 1; saved.names.push(a); } });
+  saved.names = saved.names.slice(-30);
+}
+
+/* ---------- favorites + assigning ---------- */
+document.addEventListener("click", function(e){
+  var fb = e.target.closest("[data-fav]");
+  if (fb) { var k = fb.getAttribute("data-fav"); if (saved.fav[k]) delete saved.fav[k]; else saved.fav[k] = 1; persist(); render(); toast(saved.fav[k] ? "Added to Favorites" : "Removed from Favorites"); return; }
+  var ab = e.target.closest("[data-asg]");
+  if (ab) openAssign(ab.getAttribute("data-asg"));
+});
+function openAssign(k){
+  var it = issues.filter(function(x){ return x.key === k; })[0]; if (!it) return;
+  assigningKey = k;
+  $("asgTitle").textContent = shownAsg(it) ? "Change who's assigned" : "Assign this issue";
+  $("asgSub").textContent = (it.address || "No address") + (it.issue ? " · " + it.issue.slice(0, 60) + (it.issue.length > 60 ? "…" : "") : "");
+  $("asgName").value = myAsg(it);
+  $("asgClear").classList.toggle("hide", !myAsg(it));
+  $("asgChips").innerHTML = saved.names.slice().reverse().map(function(n){ return '<button type="button" class="chip" data-pick="' + esc(n) + '">' + esc(n) + "</button>"; }).join("");
+  $("asgBg").classList.add("on");
+  setTimeout(function(){ if (!saved.names.length) $("asgName").focus(); }, 220);
+}
+function closeAssign(){ $("asgBg").classList.remove("on"); assigningKey = null; }
+$("asgChips").addEventListener("click", function(e){ var b = e.target.closest("[data-pick]"); if (b) { $("asgName").value = b.getAttribute("data-pick"); saveAssign(); } });
+function saveAssign(){
+  var n = $("asgName").value.trim().replace(/\s+/g, " ");
+  if (!n) { $("asgName").focus(); return; }
+  n = n.replace(/\b([a-z])/g, function(m){ return m.toUpperCase(); });
+  saved.asg[assigningKey] = {name: n, at: Date.now()};
+  if (!saved.names.some(function(x){ return x.toLowerCase() === n.toLowerCase(); })) saved.names.push(n);
+  saved.names = saved.names.filter(function(x){ return x.toLowerCase() !== n.toLowerCase(); }).concat([n]).slice(-30);
+  persist(); closeAssign(); render(); toast("Assigned to " + n);
+}
+$("asgSave").onclick = saveAssign;
+$("asgName").addEventListener("keydown", function(e){ if (e.key === "Enter") saveAssign(); });
+$("asgCancel").onclick = closeAssign;
+$("asgClear").onclick = function(){ delete saved.asg[assigningKey]; persist(); closeAssign(); render(); toast("Your assignment removed"); };
+$("asgBg").addEventListener("click", function(e){ if (e.target === this) closeAssign(); });
+function openChanges(){
+  var mine = issues.filter(function(it){ return myAsg(it); });
+  $("chgList").innerHTML = mine.map(function(it){ return "<div><b>" + esc(myAsg(it)) + "</b> · " + esc(it.address || "No address") + (it.dateText ? " · " + esc(it.dateText) : "") + "</div>"; }).join("");
+  $("chgBg").classList.add("on");
+}
+$("chgClose").onclick = function(){ $("chgBg").classList.remove("on"); };
+$("chgBg").addEventListener("click", function(e){ if (e.target === this) this.classList.remove("on"); });
+
+/* ---------- tabs, search, filters ---------- */
+$("tabAll").onclick = function(){ view = "all"; render(); };
+$("tabFav").onclick = function(){ view = "fav"; render(); };
+$("openBtn").onclick = pick;
+$("q").addEventListener("input", function(){ q = this.value; render(); });
+$("chips").addEventListener("click", function(e){
+  var b = e.target.closest(".chip"); if (!b) return;
+  if (b.id === "unOnly") { unOnly = !unOnly; b.setAttribute("aria-pressed", unOnly); }
+  else if (b.id === "sortBtn") { newest = !newest; b.textContent = newest ? "Newest first" : "Oldest first"; }
+  else { statusF = b.getAttribute("data-f"); document.querySelectorAll("[data-f]").forEach(function(x){ x.setAttribute("aria-pressed", x === b); }); }
+  render();
+});
+document.addEventListener("keydown", function(e){ if (e.key === "Escape") { closeAssign(); $("chgBg").classList.remove("on"); } });
+window.addEventListener("resize", setHdr);
+var tt; function toast(t){ var el = $("toast"); el.textContent = t; el.classList.add("on"); clearTimeout(tt); tt = setTimeout(function(){ el.classList.remove("on"); }, 1800); }
+
+/* ---------- practice issues (all made up) ---------- */
+function loadDemo(){
+  var d = function(m, day, h, mi){ return new Date(2026, m - 1, day, h, mi); };
+  var P = [
+    [d(10,8,9,15), "12 Pretend Lane", "Sam", "Wanda Wobblebottom", "555.010.0101", "TV says no signal on the bedroom box", "", false, "", "Weekday mornings"],
+    [d(10,9,13,40), "Apt 3B, Make-Believe Hall", "", "Percy Plumtree", "555.010.0102", "Can't connect the tablet to the new WiFi", "", false, "", "After 2 PM"],
+    [d(10,10,10,5), "48 Imaginary Court", "Pat", "Gertie Gumdrop", "555.010.0103", "Remote won't change channels (needs XR15 pairing)", "", true, "Paired remote, showed how to use voice button", ""],
+    [d(10,12,8,50), "7 Storybook Circle", "Left message 10/13", "Barnaby Bumblesworth", "555.010.0104", "Phone line has a hum since the switch", "Front Desk", false, "", "Mon/Wed 10-12"],
+    [d(10,13,15,20), "Apt 12A, Daydream House", "", "Mildred Marmalade", "555.010.0105", "Wants help setting up email on the new modem", "", false, "", ""],
+    [d(10,14,11,0), "22 Fiddlesticks Road", "Lee", "Horace Hullabaloo", "555.010.0106", "Second X1 box not installed yet", "", false, "Comcast tech booked 10/20", "Any afternoon"],
+    [d(10,15,9,30), "Apt 5C, Make-Believe Hall", "", "Clementine Cobblepot", "555.010.0107", "Internet drops every evening", "", false, "", "Tues or Thurs, 1-3 PM"],
+    [d(10,15,14,10), "3 Whimsy Way", "Sam", "Ferdinand Fizzwhistle", "555.010.0108", "Captions stuck on, can't turn off", "", true, "Turned off in settings", ""],
+    [d(10,16,8,5), "Apt 9D, Daydream House", "", "Ophelia Oddsock", "555.010.0109", "Old cable box needs to be returned", "", false, "", "Fridays"]
+  ];
+  var seen = {};
+  issues = P.map(function(p, i){
+    var base = p[0].getTime() + "|" + norm(p[1]); seen[base] = (seen[base] || 0) + 1;
+    return {key: "demo" + hash(base + "|" + seen[base]), row: i + 2, date: p[0], dateText: fmtDate(p[0]), address: p[1], assigned: p[2], name: p[3], phone: p[4], issue: p[5], person: p[6], resolved: p[7], notes: p[8], avail: p[9]};
+  });
+  fileInfo = {name: "Practice issues (made up)", at: ""};
+  learnNames(); render(); window.scrollTo(0, 0);
+}
+
+render();
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(function(){});
+</script>
+</body>
+</html>
