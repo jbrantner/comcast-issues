@@ -51,6 +51,7 @@ main{padding:12px 16px calc(90px + env(safe-area-inset-bottom));max-width:720px;
 .pill.skip{background:#fff4d6;color:#8a6100}
 .skipnote{margin-top:8px;background:#fff8e6;border-radius:10px;padding:8px 10px;font-size:14px;white-space:pre-wrap;word-break:break-word}
 .sheet textarea{width:100%;font:inherit;font-size:16px;border:1px solid var(--line);border-radius:12px;padding:12px;resize:vertical}
+.dayhd{font-weight:700;color:var(--green);padding-top:12px!important;border-bottom:2px solid var(--line)!important}
 .list .when2{color:var(--muted);font-size:13px}
 .tag2{font-size:12px;color:var(--green);margin-top:2px}
 .asg .take{background:var(--brand);color:#fff}
@@ -152,7 +153,8 @@ main{padding:12px 16px calc(90px + env(safe-area-inset-bottom));max-width:720px;
     <h3 id="chgTitle">My changes</h3>
     <div class="sub">Saved on this phone only. Add them to the Excel sheet when you're done.</div>
     <div class="list" id="chgList"></div>
-    <div class="btns"><button type="button" id="chgCopy">Copy all</button><button type="button" class="go" id="chgClose">Done</button></div>
+    <div class="btns"><button type="button" id="chgCopy">Copy all</button><button type="button" class="clr" id="chgClear">Clear fixed list</button></div>
+    <div class="btns"><button type="button" class="go" id="chgClose">Done</button></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -385,7 +387,11 @@ var $ = function(id){ return document.getElementById(id); };
 function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
 function myAsg(it){ return saved.asg[it.key] && saved.asg[it.key].name || ""; }
 function shownAsg(it){ return myAsg(it) || it.assigned; }
-function isFixed(it){ return saved.fixed[it.key] != null ? !!saved.fixed[it.key] : !!it.resolved; }
+function fx(k){ var v = saved.fixed[k]; return v == null ? null : v === true ? {on: true} : v === false ? {on: false} : v; }
+function isFixed(it){ var v = fx(it.key); return v ? !!v.on : !!it.resolved; }
+function dayLabel(ms){ var d = new Date(ms), t = new Date(); var same = function(a, b){ return a.toDateString() === b.toDateString(); };
+  var y = new Date(t); y.setDate(t.getDate() - 1);
+  return (same(d, t) ? "Today" : same(d, y) ? "Yesterday" : ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()]) + ", " + (d.getMonth() + 1) + "/" + d.getDate() + "/" + String(d.getFullYear()).slice(-2); }
 function isSkipped(it){ return !!saved.skip[it.key] && !isFixed(it); }
 function state(it){ return isFixed(it) ? "fixed" : isSkipped(it) ? "skipped" : "open"; }
 function me(){ return saved.me || "Jordan"; }
@@ -423,10 +429,10 @@ function render(){
       ? "Nothing is assigned to " + esc(me()) + " yet.<br>Tap <b>Take it</b> on any issue in All Issues to add it here."
       : "Nothing matches.") + "</div>";
   } else h = list.map(card).join("");
-  var mine = changeLines().length;
+  var mine = changeLines().length + fixedList().length, fixedToday = fixedList().filter(function(it){ var a = fx(it.key).at; return a && dayLabel(a).indexOf("Today") === 0; }).length;
   h += '<div class="foot">' + esc(fileInfo ? fileInfo.name : "") + " · " + issues.length + " issues" + (fileInfo ? " · opened " + esc(fileInfo.at) : "") +
-       (mine ? '<br><button type="button" id="chgOpen">My changes (' + mine + ")</button>" : "") +
-       '<br>You are ' + esc(me()) + ' · <button type="button" id="meBtn">Change name</button>' + (PREVIEW ? "" : '<br><button type="button" id="forget">Remove sheet from this phone</button>') + '<br>Version 6</div>';
+       (mine ? '<br><button type="button" id="chgOpen">My changes (' + mine + ")" + (fixedToday ? " · " + fixedToday + " fixed today" : "") + "</button>" : "") +
+       '<br>You are ' + esc(me()) + ' · <button type="button" id="meBtn">Change name</button>' + (PREVIEW ? "" : '<br><button type="button" id="forget">Remove sheet from this phone</button>') + '<br>Version 7</div>';
   m.innerHTML = h;
   if ($("chgOpen")) $("chgOpen").onclick = openChanges;
   if ($("meBtn")) $("meBtn").onclick = function(){ openAssign(null); };
@@ -447,7 +453,7 @@ function card(it){
     '<div class="row1"><span class="when">' + esc(it.dateText || "No date") + '</span>' +
     '<span class="pill ' + (st === "fixed" ? 'res">Fixed' : st === "skipped" ? 'skip">Skipped' : 'open">Open') + '</span>' +
     "</div>" +
-    (saved.fixed[it.key] != null && !!saved.fixed[it.key] !== !!it.resolved ? '<div class="tag2">' + (isFixed(it) ? "Marked fixed by you" : "Reopened by you") + "</div>" : "") +
+    (fx(it.key) && !!fx(it.key).on !== !!it.resolved ? '<div class="tag2">' + (isFixed(it) ? "Marked fixed by you" : "Reopened by you") + "</div>" : "") +
     '<div class="addr">' + esc(it.address || "No address") + "</div>" +
     (it.name ? '<div class="who">' + esc(it.name) + "</div>" : "") +
     (it.issue ? '<div class="issue">' + esc(it.issue) + "</div>" : "") +
@@ -464,7 +470,7 @@ function welcome(){
     "<p>Pick the tracking Excel file (.xlsx). It is read right here on this device. Nothing is uploaded or sent anywhere.</p>" +
     (PREVIEW ? '<button class="big" id="wDemo" type="button">Show practice issues</button><p class="note">Preview with made-up names and addresses.</p>'
              : '<button class="big" id="wOpen" type="button">Open Excel sheet</button><button class="link" id="wDemo" type="button">Try it with practice issues</button>' +
-               '<p class="note">Version 6. The app remembers the sheet and your assignments on this device. Open a newer copy any time with Open sheet, and your assignments carry over.</p>') +
+               '<p class="note">Version 7. The app remembers the sheet and your assignments on this device. Open a newer copy any time with Open sheet, and your assignments carry over.</p>') +
     '<div id="werr"></div></div>';
 }
 function wireWelcome(){ if ($("wOpen")) $("wOpen").onclick = pick; $("wDemo").onclick = loadDemo; }
@@ -498,7 +504,7 @@ function learnNames(){
 document.addEventListener("click", function(e){
   var xb = e.target.closest("[data-fix]");
   if (xb) { var xk = xb.getAttribute("data-fix"), xit = issues.filter(function(i){ return i.key === xk; })[0]; if (!xit) return;
-    var now = !isFixed(xit); if (now === !!xit.resolved) delete saved.fixed[xk]; else saved.fixed[xk] = now;
+    var now = !isFixed(xit); if (now === !!xit.resolved && !now) delete saved.fixed[xk]; else saved.fixed[xk] = now ? {on: true, at: Date.now()} : {on: false, at: Date.now()};
     persist(); render(); toast(now ? "Marked fixed" : "Reopened"); return; }
   var sb = e.target.closest("[data-skip]");
   if (sb) { openSkip(sb.getAttribute("data-skip")); return; }
@@ -563,22 +569,36 @@ $("skipSave").onclick = function(){
 $("skipUndo").onclick = function(){ delete saved.skip[skipKey]; persist(); closeSkip(); render(); toast("Back in Open"); };
 $("skipCancel").onclick = closeSkip;
 $("skipBg").addEventListener("click", function(e){ if (e.target === this) closeSkip(); });
+function fixedList(){ return issues.filter(function(it){ var v = fx(it.key); return v && v.on && !v.cleared; }).sort(function(a, b){ return (fx(b.key).at || 0) - (fx(a.key).at || 0); }); }
 function changeLines(){
-  return issues.filter(function(it){ return myAsg(it) || saved.skip[it.key] || saved.fixed[it.key] != null; }).map(function(it){
+  return issues.filter(function(it){ var v = fx(it.key); return myAsg(it) || (saved.skip[it.key] && !isFixed(it)) || (v && !v.on); }).map(function(it){
     var bits = [];
     if (myAsg(it)) bits.push("Assigned to " + myAsg(it));
-    if (saved.fixed[it.key] != null) bits.push(saved.fixed[it.key] ? "Fixed" : "Reopened");
+    if (fx(it.key) && !fx(it.key).on) bits.push("Reopened");
     if (saved.skip[it.key] && !isFixed(it)) bits.push("Skipped" + (saved.skip[it.key].note ? ": " + saved.skip[it.key].note : ""));
     return {it: it, text: bits.join(". ")};
   });
 }
 function openChanges(){
-  var rows = changeLines();
-  $("chgList").innerHTML = rows.length ? rows.map(function(r){ return "<div><b>" + esc(r.it.address || "No address") + '</b> <span class="when2">' + esc(r.it.dateText || "") + "</span><br>" + esc(r.text) + "</div>"; }).join("") : "<div>No changes yet.</div>";
+  var rows = changeLines(), fl = fixedList(), h = "", lastDay = null;
+  if (fl.length) {
+    fl.forEach(function(it){ var v = fx(it.key), dl = v.at ? dayLabel(v.at) : "Earlier";
+      if (dl !== lastDay) { h += '<div class="dayhd">Fixed ' + esc(dl) + " (" + fl.filter(function(x){ var a = fx(x.key).at; return (a ? dayLabel(a) : "Earlier") === dl; }).length + ")</div>"; lastDay = dl; }
+      h += "<div><b>" + esc(it.address || "No address") + '</b> <span class="when2">' + esc(it.issue ? it.issue.slice(0, 50) : "") + "</span></div>"; });
+  }
+  if (rows.length) h += '<div class="dayhd">Other changes</div>' + rows.map(function(r){ return "<div><b>" + esc(r.it.address || "No address") + '</b> <span class="when2">' + esc(r.it.dateText || "") + "</span><br>" + esc(r.text) + "</div>"; }).join("");
+  $("chgList").innerHTML = h || "<div>Nothing yet. Issues you mark fixed show up here by day.</div>";
+  $("chgClear").classList.toggle("hide", !fl.length); $("chgClear").textContent = "Clear fixed list"; delete $("chgClear").dataset.sure;
   $("chgBg").classList.add("on");
 }
+$("chgClear").onclick = function(){
+  var b = this; if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Tap again to clear"; return; }
+  fixedList().forEach(function(it){ var v = fx(it.key); saved.fixed[it.key] = {on: true, at: v.at || Date.now(), cleared: true}; });
+  persist(); render(); openChanges(); toast("Fixed list cleared. Those issues stay fixed");
+};
 $("chgCopy").onclick = function(){
-  var t = changeLines().map(function(r){ return (r.it.address || "No address") + (r.it.dateText ? " (" + r.it.dateText + ")" : "") + ": " + r.text; }).join("\n");
+  var t = fixedList().map(function(it){ var v = fx(it.key); return (it.address || "No address") + (it.dateText ? " (" + it.dateText + ")" : "") + ": Fixed" + (v.at ? " " + fmtDate(new Date(v.at)) : ""); })
+    .concat(changeLines().map(function(r){ return (r.it.address || "No address") + (r.it.dateText ? " (" + r.it.dateText + ")" : "") + ": " + r.text; })).join("\n");
   var done = function(){ toast("Copied"); };
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, function(){ toast("Couldn't copy on this phone"); });
   else toast("Couldn't copy on this phone");
