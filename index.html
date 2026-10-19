@@ -164,6 +164,17 @@ main{padding:12px 16px calc(90px + env(safe-area-inset-bottom));max-width:720px;
     <div class="btns"><button type="button" class="go" id="chgClose">Done</button></div>
   </div>
 </div>
+<div class="sheet-bg" id="newBg">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="newTitle">
+    <h3 id="newTitle">New sheet opened</h3>
+    <div class="sub" id="newSub"></div>
+    <div class="btns"><button type="button" id="newCopy">Copy my changes first</button></div>
+    <div class="btns">
+      <button type="button" id="newKeep">Keep my changes</button>
+      <button type="button" class="go" id="newFresh">Start fresh</button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -464,7 +475,7 @@ function render(){
   var mine = changeLines().length + fixedList().length, fixedToday = fixedList().filter(function(it){ var a = fx(it.key).at; return a && dayLabel(a).indexOf("Today") === 0; }).length;
   h += '<div class="foot">' + esc(fileInfo ? fileInfo.name : "") + " · " + issues.length + " issues" + (fileInfo ? " · opened " + esc(fileInfo.at) : "") +
        (mine ? '<br><button type="button" id="chgOpen">My changes (' + mine + ")" + (fixedToday ? " · " + fixedToday + " fixed today" : "") + "</button>" : "") +
-       '<br>You are ' + esc(me()) + ' · <button type="button" id="meBtn">Change name</button>' + (PREVIEW ? "" : '<br><button type="button" id="forget">Remove sheet from this phone</button>') + '<br>Version 10</div>';
+       '<br>You are ' + esc(me()) + ' · <button type="button" id="meBtn">Change name</button>' + (PREVIEW ? "" : '<br><button type="button" id="forget">Remove sheet from this phone</button>') + '<br>Version 11</div>';
   m.innerHTML = h;
   if ($("chgOpen")) $("chgOpen").onclick = openChanges;
   if ($("fbList")) $("fbList").onclick = openChanges;
@@ -504,7 +515,7 @@ function welcome(){
     "<p>Pick the tracking Excel file (.xlsx). It is read right here on this device. Nothing is uploaded or sent anywhere.</p>" +
     (PREVIEW ? '<button class="big" id="wDemo" type="button">Show practice issues</button><p class="note">Preview with made-up names and addresses.</p>'
              : '<button class="big" id="wOpen" type="button">Open Excel sheet</button><button class="link" id="wDemo" type="button">Try it with practice issues</button>' +
-               '<p class="note">Version 10. The app remembers the sheet and your assignments on this device. Open a newer copy any time with Open sheet, and your assignments carry over.</p>') +
+               '<p class="note">Version 11. The app remembers the sheet and your assignments on this device. Open a newer copy any time with Open sheet.</p>') +
     '<div id="werr"></div></div>';
 }
 function wireWelcome(){ if ($("wOpen")) $("wOpen").onclick = pick; $("wDemo").onclick = loadDemo; }
@@ -515,12 +526,24 @@ $("file").addEventListener("change", async function(){
   var f = this.files && this.files[0]; if (!f) return;
   try {
     var data = await readWorkbook(await f.arrayBuffer());
-    issues = buildIssues(data);
-    fileInfo = {name: f.name, at: fmtDate(new Date())};
-    if (!issues.length) toast("No issues found in that sheet");
-    learnNames(); persist(); if (!PREVIEW) saveSheet(); render(); window.scrollTo(0, 0);
+    var fresh = buildIssues(data), info = {name: f.name, at: fmtDate(new Date())};
+    var n = issues.length ? changeLines().length + fixedList().length : 0;
+    if (!n) { startFresh(); useSheet(fresh, info); return; }
+    pendingSheet = {issues: fresh, info: info};
+    $("newSub").textContent = "You have " + n + " change" + (n === 1 ? "" : "s") + " (assignments, fixed or skipped) from the last sheet. Starting fresh clears them so nothing gets mixed up. Copy them first if you still need to add them to Excel.";
+    $("newBg").classList.add("on");
   } catch (e) { showErr(e); }
 });
+var pendingSheet = null;
+function startFresh(){ saved.asg = {}; saved.fixed = {}; saved.skip = {}; persist(); }
+function useSheet(list, info){
+  issues = list; fileInfo = info;
+  if (!issues.length) toast("No issues found in that sheet");
+  learnNames(); persist(); if (!PREVIEW) saveSheet(); render(); window.scrollTo(0, 0);
+}
+$("newCopy").onclick = function(){ $("chgCopy").onclick(); };
+$("newKeep").onclick = function(){ $("newBg").classList.remove("on"); var p = pendingSheet; pendingSheet = null; if (p) { useSheet(p.issues, p.info); toast("New sheet opened. Your changes kept"); } };
+$("newFresh").onclick = function(){ $("newBg").classList.remove("on"); var p = pendingSheet; pendingSheet = null; if (p) { startFresh(); useSheet(p.issues, p.info); toast("New sheet opened. Starting fresh"); } };
 function showErr(e){
   var msg = e && e.message === "old-browser" ? "This browser is too old to open Excel files. Try the newest Chrome or Safari."
     : e && e.message === "not-zip" ? "That doesn't look like an .xlsx file. In Excel, use File, Save As, Excel Workbook (.xlsx)."
