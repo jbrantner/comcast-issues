@@ -54,6 +54,9 @@ main{padding:12px 16px calc(90px + env(safe-area-inset-bottom));max-width:720px;
 .fixbar{background:#e7f3ec;border-radius:14px;padding:12px 14px;margin-bottom:12px;color:var(--green)}
 .fixbar .btns{margin-top:10px}
 .fixbar .btns button{padding:10px;font-size:15px}
+.grp{font-size:15px;margin:18px 2px 8px;color:var(--brand);text-transform:none;letter-spacing:.2px;display:flex;align-items:center;gap:8px}
+.grp:first-child{margin-top:4px}
+.grp span{background:var(--soft);color:var(--muted);border-radius:999px;padding:1px 9px;font-size:13px}
 .dayhd{font-weight:700;color:var(--green);padding-top:12px!important;border-bottom:2px solid var(--line)!important}
 .list .when2{color:var(--muted);font-size:13px}
 .tag2{font-size:12px;color:var(--green);margin-top:2px}
@@ -120,6 +123,7 @@ main{padding:12px 16px calc(90px + env(safe-area-inset-bottom));max-width:720px;
     <button class="chip" data-f="skipped" aria-pressed="false" type="button">Skipped</button>
     <button class="chip" data-f="all" aria-pressed="false" type="button">All</button>
     <button class="chip" id="unOnly" aria-pressed="false" type="button">Unassigned only</button>
+    <button class="chip" id="grpBtn" aria-pressed="true" type="button">By neighborhood</button>
     <button class="chip" id="sortBtn" aria-pressed="false" type="button">Newest first</button>
   </div>
 </div>
@@ -385,6 +389,7 @@ function fmtDate(d){
 }
 
 /* ---------- state + rendering ---------- */
+var grouped = true; try { grouped = localStorage.getItem("comcastIssues.group") !== "0"; } catch (e) {}
 var issues = [], fileInfo = null, view = "mine", statusF = "open", unOnly = false, newest = true, q = "", assigningKey = null;
 var $ = function(id){ return document.getElementById(id); };
 function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
@@ -401,6 +406,17 @@ function me(){ return saved.me || "Jordan"; }
 function isMine(it){ var a = norm(shownAsg(it)), m = norm(me()); if (!a || !m) return false; return (" " + a.replace(/[^a-z0-9]+/g, " ") + " ").indexOf(" " + m + " ") > -1; }
 function telHref(p){ var d = String(p).replace(/[^\d+]/g, ""); return d.replace(/\D/g, "").length >= 7 ? "tel:" + d : ""; }
 
+var SKIPWORDS = {APT:1, STE:1, RD:1, ST:1, LN:1, DR:1, CT:1, AVE:1, PA:1, PO:1, BOX:1, UNIT:1, RM:1, HWY:1, BLVD:1, PL:1, CIR:1, WAY:1};
+// Neighborhood = a short capital-letter code in the address (DD, VM ...); else the street or building name
+function hood(it){
+  var a = String(it.address || ""), re = /(?:^|[^A-Za-z])([A-Z]{2,4})(?=[^A-Za-z]|$)/g, m;
+  while ((m = re.exec(a))) if (!SKIPWORDS[m[1]]) return m[1];
+  var parts = a.split(/[,;\n]/).map(function(x){ return x.trim(); }).filter(Boolean);
+  parts.sort(function(x, y){ return (x.match(/\d/g) || []).length - (y.match(/\d/g) || []).length; });
+  var name = (parts[0] || "").replace(/^(apt|apartment|unit|room|rm|#)\.?\s*\S*\s*/i, "").replace(/^\d+[A-Za-z]?\b\s*/, "").trim();
+  return name || "No neighborhood";
+}
+function roomNum(it){ var m = /\d+/.exec(it.address || ""); return m ? +m[0] : 1e9; }
 function filtered(){
   var qq = norm(q);
   var list = issues.filter(function(it){
@@ -433,6 +449,14 @@ function render(){
     h = '<div class="empty">' + (view === "mine" && !issues.some(isMine)
       ? "Nothing is assigned to " + esc(me()) + " yet.<br>Tap <b>Take it</b> on any issue in All Issues to add it here."
       : statusF === "resolved" ? "Nothing marked fixed yet.<br>Issues you tap <b>Mark fixed</b> on show up here until you clear the list." : "Nothing matches.") + "</div>";
+  } else if (grouped) {
+    var groups = {}, order = [];
+    list.forEach(function(it){ var g = hood(it); if (!groups[g]) { groups[g] = []; order.push(g); } groups[g].push(it); });
+    order.sort(function(a, b){ return (a === "No neighborhood") - (b === "No neighborhood") || a.localeCompare(b); });
+    h = order.map(function(g){
+      var items = groups[g].slice().sort(function(a, b){ return roomNum(a) - roomNum(b) || (a.date ? a.date.getTime() : 0) - (b.date ? b.date.getTime() : 0); });
+      return '<h2 class="grp">' + esc(g) + ' <span>' + items.length + "</span></h2>" + items.map(card).join("");
+    }).join("");
   } else h = list.map(card).join("");
   var fl = fixedList();
   if (statusF === "resolved" && fl.length) h = '<div class="fixbar"><div><b>' + fl.length + " fixed by you</b> since you last cleared</div>" +
@@ -440,7 +464,7 @@ function render(){
   var mine = changeLines().length + fixedList().length, fixedToday = fixedList().filter(function(it){ var a = fx(it.key).at; return a && dayLabel(a).indexOf("Today") === 0; }).length;
   h += '<div class="foot">' + esc(fileInfo ? fileInfo.name : "") + " · " + issues.length + " issues" + (fileInfo ? " · opened " + esc(fileInfo.at) : "") +
        (mine ? '<br><button type="button" id="chgOpen">My changes (' + mine + ")" + (fixedToday ? " · " + fixedToday + " fixed today" : "") + "</button>" : "") +
-       '<br>You are ' + esc(me()) + ' · <button type="button" id="meBtn">Change name</button>' + (PREVIEW ? "" : '<br><button type="button" id="forget">Remove sheet from this phone</button>') + '<br>Version 9</div>';
+       '<br>You are ' + esc(me()) + ' · <button type="button" id="meBtn">Change name</button>' + (PREVIEW ? "" : '<br><button type="button" id="forget">Remove sheet from this phone</button>') + '<br>Version 10</div>';
   m.innerHTML = h;
   if ($("chgOpen")) $("chgOpen").onclick = openChanges;
   if ($("fbList")) $("fbList").onclick = openChanges;
@@ -480,7 +504,7 @@ function welcome(){
     "<p>Pick the tracking Excel file (.xlsx). It is read right here on this device. Nothing is uploaded or sent anywhere.</p>" +
     (PREVIEW ? '<button class="big" id="wDemo" type="button">Show practice issues</button><p class="note">Preview with made-up names and addresses.</p>'
              : '<button class="big" id="wOpen" type="button">Open Excel sheet</button><button class="link" id="wDemo" type="button">Try it with practice issues</button>' +
-               '<p class="note">Version 9. The app remembers the sheet and your assignments on this device. Open a newer copy any time with Open sheet, and your assignments carry over.</p>') +
+               '<p class="note">Version 10. The app remembers the sheet and your assignments on this device. Open a newer copy any time with Open sheet, and your assignments carry over.</p>') +
     '<div id="werr"></div></div>';
 }
 function wireWelcome(){ if ($("wOpen")) $("wOpen").onclick = pick; $("wDemo").onclick = loadDemo; }
@@ -623,10 +647,12 @@ $("chgBg").addEventListener("click", function(e){ if (e.target === this) this.cl
 $("tabAll").onclick = function(){ view = "all"; render(); };
 $("tabMine").onclick = function(){ view = "mine"; render(); };
 $("openBtn").onclick = pick;
+$("grpBtn").setAttribute("aria-pressed", grouped);
 $("q").addEventListener("input", function(){ q = this.value; render(); });
 $("chips").addEventListener("click", function(e){
   var b = e.target.closest(".chip"); if (!b) return;
   if (b.id === "unOnly") { unOnly = !unOnly; b.setAttribute("aria-pressed", unOnly); }
+  else if (b.id === "grpBtn") { grouped = !grouped; b.setAttribute("aria-pressed", grouped); try { localStorage.setItem("comcastIssues.group", grouped ? "1" : "0"); } catch (e) {} }
   else if (b.id === "sortBtn") { newest = !newest; b.textContent = newest ? "Newest first" : "Oldest first"; }
   else { statusF = b.getAttribute("data-f"); document.querySelectorAll("[data-f]").forEach(function(x){ x.setAttribute("aria-pressed", x === b); }); }
   render();
@@ -639,15 +665,15 @@ var tt; function toast(t){ var el = $("toast"); el.textContent = t; el.classList
 function loadDemo(){
   var d = function(m, day, h, mi){ return new Date(2026, m - 1, day, h, mi); };
   var P = [
-    [d(10,8,9,15), "12 Pretend Lane", "Sam", "Wanda Wobblebottom", "555.010.0101", "TV says no signal on the bedroom box", "", false, "", "Weekday mornings"],
-    [d(10,9,13,40), "Apt 3B, Make-Believe Hall", "", "Percy Plumtree", "555.010.0102", "Can't connect the tablet to the new WiFi", "", false, "", "After 2 PM"],
-    [d(10,10,10,5), "48 Imaginary Court", "Jordan", "Gertie Gumdrop", "555.010.0103", "Remote won't change channels (needs XR15 pairing)", "", true, "Paired remote, showed how to use voice button", ""],
-    [d(10,12,8,50), "7 Storybook Circle", "Left message 10/13", "Barnaby Bumblesworth", "555.010.0104", "Phone line has a hum since the switch", "Front Desk", false, "", "Mon/Wed 10-12"],
-    [d(10,13,15,20), "Apt 12A, Daydream House", "", "Mildred Marmalade", "555.010.0105", "Wants help setting up email on the new modem", "", false, "", ""],
-    [d(10,14,11,0), "22 Fiddlesticks Road", "Jordan", "Horace Hullabaloo", "555.010.0106", "Second X1 box not installed yet", "", false, "Comcast tech booked 10/20", "Any afternoon"],
-    [d(10,15,9,30), "Apt 5C, Make-Believe Hall", "", "Clementine Cobblepot", "555.010.0107", "Internet drops every evening", "", false, "", "Tues or Thurs, 1-3 PM"],
-    [d(10,15,14,10), "3 Whimsy Way", "Sam", "Ferdinand Fizzwhistle", "555.010.0108", "Captions stuck on, can't turn off", "", true, "Turned off in settings", ""],
-    [d(10,16,8,5), "Apt 9D, Daydream House", "", "Ophelia Oddsock", "555.010.0109", "Old cable box needs to be returned", "", false, "", "Fridays"]
+    [d(10,8,9,15), "DD 104", "Sam", "Wanda Wobblebottom", "555.010.0101", "TV says no signal on the bedroom box", "", false, "", "Weekday mornings"],
+    [d(10,9,13,40), "VM 23", "", "Percy Plumtree", "555.010.0102", "Can't connect the tablet to the new WiFi", "", false, "", "After 2 PM"],
+    [d(10,10,10,5), "DD 112", "Jordan", "Gertie Gumdrop", "555.010.0103", "Remote won't change channels (needs XR15 pairing)", "", true, "Paired remote, showed how to use voice button", ""],
+    [d(10,12,8,50), "Cottage 7, Storybook Circle", "Left message 10/13", "Barnaby Bumblesworth", "555.010.0104", "Phone line has a hum since the switch", "Front Desk", false, "", "Mon/Wed 10-12"],
+    [d(10,13,15,20), "VM 31", "", "Mildred Marmalade", "555.010.0105", "Wants help setting up email on the new modem", "", false, "", ""],
+    [d(10,14,11,0), "DD 210", "Jordan", "Horace Hullabaloo", "555.010.0106", "Second X1 box not installed yet", "", false, "Comcast tech booked 10/20", "Any afternoon"],
+    [d(10,15,9,30), "VM 5", "", "Clementine Cobblepot", "555.010.0107", "Internet drops every evening", "", false, "", "Tues or Thurs, 1-3 PM"],
+    [d(10,15,14,10), "Cottage 3, Whimsy Way", "Sam", "Ferdinand Fizzwhistle", "555.010.0108", "Captions stuck on, can't turn off", "", true, "Turned off in settings", ""],
+    [d(10,16,8,5), "DD 9", "", "Ophelia Oddsock", "555.010.0109", "Old cable box needs to be returned", "", false, "", "Fridays"]
   ];
   var seen = {};
   issues = P.map(function(p, i){
